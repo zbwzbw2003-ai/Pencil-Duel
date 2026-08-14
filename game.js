@@ -24,6 +24,9 @@
   };
   const MAX_DRAG = 92;
   const MIN_DRAG = 10;
+  const HOLD_POWER_MS = 1200;
+  const DRAG_POWER_WEIGHT = .7;
+  const HOLD_POWER_WEIGHT = .3;
   const FRICTION = 940;
   const MAX_SPEED = 660;
   const HIT_RADIUS = 16;
@@ -47,6 +50,9 @@
       aiming: false,
       aimPoint: null,
       aimPower: 0,
+      aimStart: null,
+      aimStartedAt: 0,
+      aimDragDistance: 0,
       pointerId: null,
       winner: null,
       particles: [],
@@ -93,8 +99,8 @@
       turnBanner.classList.remove('ai-turn');
       turnBanner.querySelector('small').textContent = 'YOUR MOVE';
       turnBanner.querySelector('strong').textContent = '轮到你了';
-      instructionTitle.textContent = '按住铅笔，朝目标方向拖动';
-      instructionText.textContent = '短距离拖动控制力度；滑程受角度、纸纹和随机摩擦影响。';
+      instructionTitle.textContent = '按住鼠标左键，朝出手方向滑动';
+      instructionText.textContent = '滑动距离与按住时长共同决定力度，松开左键出手。';
       controlDock.classList.remove('waiting');
     } else {
       turnBanner.classList.add('ai-turn');
@@ -121,32 +127,57 @@
 
   function pointerDown(e) {
     if (state.phase !== 'playerAim') return;
+    if (state.aiming) return;
+    if (e.pointerType === 'mouse' && e.button !== 0) return;
     const p = pointFromEvent(e);
     if (distance(p, state.player.pos) > 60) return;
+    e.preventDefault();
     initAudio();
     state.aiming = true;
     state.pointerId = e.pointerId;
-    state.aimPoint = p;
+    state.aimStart = p;
+    state.aimStartedAt = performance.now();
+    state.aimDragDistance = 0;
+    state.aimPoint = {...state.player.pos};
+    state.aimPower = 0;
     canvas.setPointerCapture(e.pointerId);
     canvas.className = 'is-aiming';
-    instructionTitle.textContent = '调整方向与力度';
-      instructionText.textContent = '虚线是估算路线，末端短线表示可能的随机落点范围。';
+    instructionTitle.textContent = '滑动决定方向，距离 + 时长决定力度';
+    instructionText.textContent = '力度会随按住时间增加；虚线是估算轨迹。';
   }
 
   function pointerMove(e) {
     if (!state.aiming || e.pointerId !== state.pointerId) return;
+    e.preventDefault();
+    updateAimFromEvent(e);
+  }
+
+  function updateAimFromEvent(e) {
     const p = pointFromEvent(e);
     const origin = state.player.pos;
-    const dx = p.x - origin.x, dy = p.y - origin.y;
+    const dx = p.x - state.aimStart.x, dy = p.y - state.aimStart.y;
     const len = Math.hypot(dx, dy);
     const scale = len > MAX_DRAG ? MAX_DRAG / len : 1;
     state.aimPoint = {x: origin.x + dx * scale, y: origin.y + dy * scale};
-    state.aimPower = Math.min(1, len / MAX_DRAG);
+    state.aimDragDistance = len;
+    updateAimPower();
+  }
+
+  function updateAimPower() {
+    if (!state.aiming) return state.aimPower;
+    const dragPower = Math.min(1, state.aimDragDistance / MAX_DRAG);
+    const holdPower = Math.min(1, (performance.now() - state.aimStartedAt) / HOLD_POWER_MS);
+    state.aimPower = Math.min(1, dragPower * DRAG_POWER_WEIGHT + holdPower * HOLD_POWER_WEIGHT);
     setPower(state.aimPower);
+    return state.aimPower;
   }
 
   function pointerUp(e) {
     if (!state.aiming || e.pointerId !== state.pointerId) return;
+    if (e.pointerType === 'mouse' && e.button !== 0) return;
+    e.preventDefault();
+    updateAimFromEvent(e);
+    const power = updateAimPower();
     state.aiming = false;
     canvas.releasePointerCapture(e.pointerId);
     canvas.className = '';
@@ -160,8 +191,20 @@
       updateUI('player');
       return;
     }
-    const speed = 180 + (Math.min(len, MAX_DRAG) / MAX_DRAG) * (MAX_SPEED - 180);
+    const speed = 180 + Math.max(.08, power) * (MAX_SPEED - 180);
     launch('player', {x: dx / len * speed, y: dy / len * speed});
+  }
+
+  function pointerCancel(e) {
+    if (!state.aiming || e.pointerId !== state.pointerId) return;
+    state.aiming = false;
+    state.aimPoint = null;
+    state.aimPower = 0;
+    state.aimStart = null;
+    state.aimDragDistance = 0;
+    setPower(0);
+    canvas.className = state.phase === 'playerAim' ? 'can-aim' : '';
+    updateUI('player');
   }
 
   function launch(owner, velocity) {
@@ -183,12 +226,15 @@
     state.trails.push(state.currentTrail);
     state.aimPoint = null;
     state.aimPower = 0;
+    state.aimStart = null;
+    state.aimDragDistance = 0;
     setPower(0);
     startScratch();
   }
 
   function update(dt) {
     state.pulse += dt;
+    if (state.aiming) updateAimPower();
     if (state.phase === 'moving') updateMovement(dt);
     state.particles.forEach(p => { p.life -= dt; p.x += p.vx * dt; p.y += p.vy * dt; p.vy += 90 * dt; });
     state.particles = state.particles.filter(p => p.life > 0);
@@ -520,7 +566,7 @@
     ctx.beginPath(); ctx.moveTo(0, 0); ctx.lineTo(-10, -5); ctx.lineTo(-7, 0); ctx.lineTo(-10, 5); ctx.closePath(); ctx.fill();
     ctx.restore();
 
-    const speed = 180 + Math.min(1, len / MAX_DRAG) * (MAX_SPEED - 180);
+    const speed = 180 + state.aimPower * (MAX_SPEED - 180);
     const centralFriction = paperFrictionForAngle(angle, 1);
     const shotVelocity = {x: Math.cos(angle) * speed, y: Math.sin(angle) * speed};
     const preview = previewPath(start, shotVelocity, centralFriction);
@@ -620,7 +666,7 @@
   canvas.addEventListener('pointerdown', pointerDown);
   canvas.addEventListener('pointermove', pointerMove);
   canvas.addEventListener('pointerup', pointerUp);
-  canvas.addEventListener('pointercancel', pointerUp);
+  canvas.addEventListener('pointercancel', pointerCancel);
   document.getElementById('resetButton').addEventListener('click', resetGame);
   document.getElementById('playAgainButton').addEventListener('click', resetGame);
   window.addEventListener('resize', resize);

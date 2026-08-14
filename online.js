@@ -38,6 +38,9 @@
   };
   const MAX_DRAG = 92;
   const MIN_DRAG = 10;
+  const HOLD_POWER_MS = 1200;
+  const DRAG_POWER_WEIGHT = .7;
+  const HOLD_POWER_WEIGHT = .3;
   const FRICTION = 940;
   const MAX_SPEED = 660;
   const HIT_RADIUS = 16;
@@ -66,6 +69,7 @@
     ai: {pos: {x: 0, y: 0}, angle: Math.PI},
     bases: {player: {x: 0, y: 0}, ai: {x: 0, y: 0}},
     trails: [], aiming: false, aimPoint: null, aimPower: 0,
+    aimStart: null, aimStartedAt: 0, aimDragDistance: 0,
     pointerId: null, playback: null, pulse: 0, particles: [],
     pausedForDisconnect: false
   };
@@ -148,8 +152,8 @@
     turnBanner.classList.toggle('ai-turn', orangeTurn);
     turnLabel.textContent = mine ? 'YOUR MOVE' : 'RIVAL MOVE';
     turnText.textContent = mine ? '轮到你了' : '等待对手落笔';
-    instructionTitle.textContent = mine ? '按住你的铅笔，短距离拖动瞄准' : '对手正在选择方向与力度';
-    instructionText.textContent = mine ? '服务器会加入纸纹与随机摩擦，再计算最终轨迹。' : '对手松手后，双方会同时看到服务器确认的划痕。';
+    instructionTitle.textContent = mine ? '按住鼠标左键，朝出手方向滑动' : '对手正在选择方向与力度';
+    instructionText.textContent = mine ? '滑动距离与按住时长共同决定力度，松开左键出手。' : '对手松手后，双方会同时看到服务器确认的划痕。';
     controlDock.classList.toggle('waiting', !mine);
     canvas.className = mine ? 'can-aim' : '';
     setPower(0);
@@ -439,26 +443,49 @@
 
   function pointerDown(e) {
     if (state.phase !== 'playerAim' || state.active !== net.side) return;
+    if (state.aiming) return;
+    if (e.pointerType === 'mouse' && e.button !== 0) return;
     const p = pointFromEvent(e), unit = state[net.side];
     if (distance(p, unit.pos) > 60) return;
-    state.aiming = true; state.pointerId = e.pointerId; state.aimPoint = p;
+    e.preventDefault();
+    state.aiming = true; state.pointerId = e.pointerId;
+    state.aimStart = p; state.aimStartedAt = performance.now(); state.aimDragDistance = 0;
+    state.aimPoint = {...unit.pos}; state.aimPower = 0;
     canvas.setPointerCapture(e.pointerId); canvas.className = 'is-aiming';
-    instructionTitle.textContent = '调整短距离瞄准';
-    instructionText.textContent = '虚线只表示估算；服务器会决定这一次的真实滑程。';
+    instructionTitle.textContent = '滑动决定方向，距离 + 时长决定力度';
+    instructionText.textContent = '力度会随按住时间增加；服务器会决定真实滑程。';
   }
 
   function pointerMove(e) {
     if (!state.aiming || e.pointerId !== state.pointerId) return;
+    e.preventDefault();
+    updateAimFromEvent(e);
+  }
+
+  function updateAimFromEvent(e) {
     const p = pointFromEvent(e), origin = state[net.side].pos;
-    const dx = p.x - origin.x, dy = p.y - origin.y, len = Math.hypot(dx, dy);
+    const dx = p.x - state.aimStart.x, dy = p.y - state.aimStart.y, len = Math.hypot(dx, dy);
     const scale = len > MAX_DRAG ? MAX_DRAG / len : 1;
     state.aimPoint = {x: origin.x + dx * scale, y: origin.y + dy * scale};
-    state.aimPower = Math.min(1, len / MAX_DRAG);
+    state.aimDragDistance = len;
+    updateAimPower();
+  }
+
+  function updateAimPower() {
+    if (!state.aiming) return state.aimPower;
+    const dragPower = Math.min(1, state.aimDragDistance / MAX_DRAG);
+    const holdPower = Math.min(1, (performance.now() - state.aimStartedAt) / HOLD_POWER_MS);
+    state.aimPower = Math.min(1, dragPower * DRAG_POWER_WEIGHT + holdPower * HOLD_POWER_WEIGHT);
     setPower(state.aimPower);
+    return state.aimPower;
   }
 
   function pointerUp(e) {
     if (!state.aiming || e.pointerId !== state.pointerId) return;
+    if (e.pointerType === 'mouse' && e.button !== 0) return;
+    e.preventDefault();
+    updateAimFromEvent(e);
+    const power = updateAimPower();
     state.aiming = false;
     canvas.releasePointerCapture(e.pointerId);
     const unit = state[net.side];
@@ -470,8 +497,19 @@
     }
     const serverDx = dx / W * net.serverW;
     const serverDy = dy / H * net.serverH;
-    sendShot(Math.atan2(serverDy, serverDx), Math.min(1, len / MAX_DRAG));
-    state.aimPower = 0; setPower(0);
+    sendShot(Math.atan2(serverDy, serverDx), Math.max(.08, power));
+    state.aimPower = 0; state.aimStart = null; state.aimDragDistance = 0; setPower(0);
+  }
+
+  function pointerCancel(e) {
+    if (!state.aiming || e.pointerId !== state.pointerId) return;
+    state.aiming = false;
+    state.aimPoint = null;
+    state.aimPower = 0;
+    state.aimStart = null;
+    state.aimDragDistance = 0;
+    setPower(0);
+    updateTurnUI();
   }
 
   function pointFromEvent(e) {
@@ -488,6 +526,7 @@
 
   function update(dt) {
     state.pulse += dt;
+    if (state.aiming) updateAimPower();
     if (state.phase === 'networkMoving') updatePlayback(dt);
     state.particles.forEach(p => { p.life -= dt; p.x += p.vx * dt; p.y += p.vy * dt; p.vy += 90 * dt; });
     state.particles = state.particles.filter(p => p.life > 0);
@@ -583,7 +622,7 @@
     ctx.translate(end.x, end.y); ctx.rotate(localAngle); ctx.beginPath(); ctx.moveTo(0, 0); ctx.lineTo(-10, -5); ctx.lineTo(-7, 0); ctx.lineTo(-10, 5); ctx.closePath(); ctx.fill(); ctx.restore();
 
     const serverStart = localToServer(start), serverDx = dx / W * net.serverW, serverDy = dy / H * net.serverH;
-    const angle = Math.atan2(serverDy, serverDx), power = Math.min(1, len / MAX_DRAG);
+    const angle = Math.atan2(serverDy, serverDx), power = state.aimPower;
     const centralFriction = paperFrictionForAngle(angle, 1);
     const centerPath = previewServerPath(serverStart, angle, power, centralFriction).map(serverToLocal);
     const shortPath = previewServerPath(serverStart, angle, power, centralFriction * 1.16).map(serverToLocal);
@@ -648,7 +687,7 @@
   canvas.addEventListener('pointerdown', pointerDown);
   canvas.addEventListener('pointermove', pointerMove);
   canvas.addEventListener('pointerup', pointerUp);
-  canvas.addEventListener('pointercancel', pointerUp);
+  canvas.addEventListener('pointercancel', pointerCancel);
   addEventListener('resize', resize);
   document.addEventListener('visibilitychange', () => { lastTime = performance.now(); });
 
