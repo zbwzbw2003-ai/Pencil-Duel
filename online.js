@@ -42,6 +42,7 @@
   const MAX_SPEED = 660;
   const HIT_RADIUS = 16;
   const EDGE = 42;
+  const APP_BASE = location.pathname === '/game1' || location.pathname.startsWith('/game1/') ? '/game1' : '';
 
   let W = 0, H = 0, dpr = 1, lastTime = performance.now();
   let toastTimer = null;
@@ -185,7 +186,7 @@
     if (!canUseNetwork()) return;
     setLobbyBusy(true, '正在 Cloudflare 边缘创建房间…');
     try {
-      const response = await fetch('/api/rooms', {
+      const response = await fetch(`${APP_BASE}/api/rooms`, {
         method: 'POST',
         headers: {'Content-Type': 'application/json'},
         body: JSON.stringify({width: Math.round(W), height: Math.round(H)})
@@ -210,7 +211,7 @@
     setLobbyBusy(true, '正在加入房间…');
     try {
       const storedToken = localStorage.getItem(`pencil-duel:${code}`) || '';
-      const response = await fetch(`/api/rooms/${code}/join`, {
+      const response = await fetch(`${APP_BASE}/api/rooms/${code}/join`, {
         method: 'POST',
         headers: {'Content-Type': 'application/json'},
         body: JSON.stringify({token: storedToken})
@@ -242,7 +243,7 @@
     }
     net.intentionallyClosed = false;
     const scheme = location.protocol === 'https:' ? 'wss:' : 'ws:';
-    const socket = new WebSocket(`${scheme}//${location.host}/api/rooms/${net.roomCode}/socket?token=${encodeURIComponent(net.token)}`);
+    const socket = new WebSocket(`${scheme}//${location.host}${APP_BASE}/api/rooms/${net.roomCode}/socket?token=${encodeURIComponent(net.token)}`);
     net.socket = socket;
     networkState.textContent = isReconnect ? 'RECONNECT' : 'CONNECTING';
     socket.addEventListener('open', () => {

@@ -11,12 +11,18 @@ const EDGE = 42;
 export default {
   async fetch(request, env) {
     const url = new URL(request.url);
+    if (url.pathname === '/game1') {
+      return Response.redirect(new URL('/game1/', url), 308);
+    }
+    const routePath = url.pathname.startsWith('/game1/')
+      ? url.pathname.slice('/game1'.length)
+      : url.pathname;
 
-    if (url.pathname === '/api/health') {
+    if (routePath === '/api/health') {
       return json({ok: true, service: 'pencil-duel', transport: 'durable-object-websocket'});
     }
 
-    if (url.pathname === '/api/rooms' && request.method === 'POST') {
+    if (routePath === '/api/rooms' && request.method === 'POST') {
       const requested = await safeJson(request);
       const width = clamp(Math.round(Number(requested.width) || 1000), 640, 1920);
       const height = clamp(Math.round(Number(requested.height) || 600), 420, 1080);
@@ -37,7 +43,7 @@ export default {
       return json({error: '暂时无法分配房间码，请重试。'}, 503);
     }
 
-    const match = url.pathname.match(/^\/api\/rooms\/([A-Z2-9]{6})\/(join|socket)$/);
+    const match = routePath.match(/^\/api\/rooms\/([A-Z2-9]{6})\/(join|socket)$/);
     if (match) {
       const [, roomCode, action] = match;
       const stub = env.ROOMS.getByName(roomCode);
@@ -53,7 +59,7 @@ export default {
       }
     }
 
-    if (url.pathname.startsWith('/api/')) return json({error: 'Not found'}, 404);
+    if (routePath.startsWith('/api/')) return json({error: 'Not found'}, 404);
     return env.ASSETS.fetch(request);
   }
 };
