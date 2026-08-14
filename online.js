@@ -69,7 +69,7 @@
     ai: {pos: {x: 0, y: 0}, angle: Math.PI},
     bases: {player: {x: 0, y: 0}, ai: {x: 0, y: 0}},
     trails: [], aiming: false, aimPoint: null, aimPower: 0,
-    aimStart: null, aimStartedAt: 0, aimDragDistance: 0, aimFrozen: false,
+    aimStart: null, aimVector: {x: 0, y: 0}, aimStartedAt: 0, aimDragDistance: 0, aimFrozen: false,
     pointerId: null, playback: null, pulse: 0, particles: [],
     pausedForDisconnect: false
   };
@@ -449,10 +449,10 @@
     if (distance(p, unit.pos) > 60) return;
     e.preventDefault();
     state.aiming = true; state.pointerId = e.pointerId;
-    state.aimStart = p; state.aimStartedAt = performance.now(); state.aimDragDistance = 0; state.aimFrozen = false;
+    state.aimStart = p; state.aimVector = {x: 0, y: 0}; state.aimStartedAt = performance.now(); state.aimDragDistance = 0; state.aimFrozen = false;
     state.aimPoint = {...unit.pos}; state.aimPower = 0;
     canvas.setPointerCapture(e.pointerId); canvas.className = 'is-aiming';
-    instructionTitle.textContent = '滑动决定方向，距离 + 时长决定力度';
+    instructionTitle.textContent = '铅笔尖严格沿鼠标滑动中心线';
     instructionText.textContent = '前 0.3 秒内可调整；计时结束时铅笔会自动滑出。';
   }
 
@@ -464,9 +464,11 @@
 
   function updateAimFromEvent(e) {
     if (updateAimPower()) return true;
-    const p = pointFromEvent(e), origin = state[net.side].pos;
+    const samples = e.getCoalescedEvents?.();
+    const p = pointFromEvent(samples?.length ? samples.at(-1) : e), origin = state[net.side].pos;
     const dx = p.x - state.aimStart.x, dy = p.y - state.aimStart.y, len = Math.hypot(dx, dy);
     const scale = len > MAX_DRAG ? MAX_DRAG / len : 1;
+    state.aimVector = {x: dx, y: dy};
     state.aimPoint = {x: origin.x + dx * scale, y: origin.y + dy * scale};
     state.aimDragDistance = len;
     return updateAimPower();
@@ -502,7 +504,7 @@
       canvas.releasePointerCapture(state.pointerId);
     }
     const unit = state[net.side];
-    const dx = state.aimPoint.x - unit.pos.x, dy = state.aimPoint.y - unit.pos.y;
+    const dx = state.aimVector.x, dy = state.aimVector.y;
     const len = Math.hypot(dx, dy);
     state.aimPoint = null;
     if (len < MIN_DRAG) {
@@ -511,7 +513,7 @@
     const serverDx = dx / W * net.serverW;
     const serverDy = dy / H * net.serverH;
     sendShot(Math.atan2(serverDy, serverDx), Math.max(.08, power));
-    state.aimPower = 0; state.aimStart = null; state.aimDragDistance = 0; state.aimFrozen = false; setPower(0);
+    state.aimPower = 0; state.aimStart = null; state.aimVector = {x: 0, y: 0}; state.aimDragDistance = 0; state.aimFrozen = false; setPower(0);
   }
 
   function pointerCancel(e) {
@@ -520,6 +522,7 @@
     state.aimPoint = null;
     state.aimPower = 0;
     state.aimStart = null;
+    state.aimVector = {x: 0, y: 0};
     state.aimDragDistance = 0;
     state.aimFrozen = false;
     setPower(0);

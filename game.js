@@ -51,6 +51,7 @@
       aimPoint: null,
       aimPower: 0,
       aimStart: null,
+      aimVector: {x: 0, y: 0},
       aimStartedAt: 0,
       aimDragDistance: 0,
       aimFrozen: false,
@@ -137,6 +138,7 @@
     state.aiming = true;
     state.pointerId = e.pointerId;
     state.aimStart = p;
+    state.aimVector = {x: 0, y: 0};
     state.aimStartedAt = performance.now();
     state.aimDragDistance = 0;
     state.aimFrozen = false;
@@ -144,7 +146,7 @@
     state.aimPower = 0;
     canvas.setPointerCapture(e.pointerId);
     canvas.className = 'is-aiming';
-    instructionTitle.textContent = '滑动决定方向，距离 + 时长决定力度';
+    instructionTitle.textContent = '铅笔尖严格沿鼠标滑动中心线';
     instructionText.textContent = '前 0.3 秒内可调整；计时结束时铅笔会自动滑出。';
   }
 
@@ -156,11 +158,13 @@
 
   function updateAimFromEvent(e) {
     if (updateAimPower()) return true;
-    const p = pointFromEvent(e);
+    const samples = e.getCoalescedEvents?.();
+    const p = pointFromEvent(samples?.length ? samples.at(-1) : e);
     const origin = state.player.pos;
     const dx = p.x - state.aimStart.x, dy = p.y - state.aimStart.y;
     const len = Math.hypot(dx, dy);
     const scale = len > MAX_DRAG ? MAX_DRAG / len : 1;
+    state.aimVector = {x: dx, y: dy};
     state.aimPoint = {x: origin.x + dx * scale, y: origin.y + dy * scale};
     state.aimDragDistance = len;
     return updateAimPower();
@@ -196,8 +200,8 @@
       canvas.releasePointerCapture(state.pointerId);
     }
     canvas.className = '';
-    const dx = state.aimPoint.x - state.player.pos.x;
-    const dy = state.aimPoint.y - state.player.pos.y;
+    const dx = state.aimVector.x;
+    const dy = state.aimVector.y;
     const len = Math.hypot(dx, dy);
     if (len < MIN_DRAG) {
       state.aimPoint = null;
@@ -216,6 +220,7 @@
     state.aimPoint = null;
     state.aimPower = 0;
     state.aimStart = null;
+    state.aimVector = {x: 0, y: 0};
     state.aimDragDistance = 0;
     state.aimFrozen = false;
     setPower(0);
@@ -243,6 +248,7 @@
     state.aimPoint = null;
     state.aimPower = 0;
     state.aimStart = null;
+    state.aimVector = {x: 0, y: 0};
     state.aimDragDistance = 0;
     state.aimFrozen = false;
     setPower(0);
