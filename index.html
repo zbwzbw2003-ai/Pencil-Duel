@@ -1,0 +1,104 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <meta name="theme-color" content="#123c3d" />
+  <title>铅迹追猎 · Pencil Duel</title>
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <main class="game-shell">
+    <header class="topbar">
+      <div class="brand">
+        <span class="brand-mark" aria-hidden="true"><i></i><i></i><i></i></span>
+        <div>
+          <p>PENCIL DUEL</p>
+          <h1>铅迹追猎</h1>
+        </div>
+      </div>
+
+      <div class="scoreboard" aria-label="对局状态">
+        <div class="side player-side">
+          <span class="side-dot"></span>
+          <div><b>PLAYER</b><small>你</small></div>
+        </div>
+        <div class="round">
+          <small>ROUND</small>
+          <strong id="roundNumber">01</strong>
+        </div>
+        <div class="side ai-side">
+          <div><b>COMPUTER</b><small>AI</small></div>
+          <span class="side-dot"></span>
+        </div>
+      </div>
+
+      <div class="header-actions">
+        <a class="icon-button online-link" href="online.html" aria-label="进入互联网联机模式">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="8" cy="12" r="3"/><circle cx="16" cy="12" r="3"/><path d="M11 12h2"/></svg>
+          <span>联机</span>
+        </a>
+        <button class="icon-button" id="resetButton" type="button" aria-label="重新开始">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20 11a8 8 0 1 0-2.34 5.66M20 4v7h-7" /></svg>
+          <span>重开</span>
+        </button>
+      </div>
+    </header>
+
+    <section class="board-wrap" id="boardWrap">
+      <canvas id="gameCanvas" aria-label="铅笔轨迹对战游戏区域"></canvas>
+
+      <div class="paper-title" aria-hidden="true">
+        <span>MATCH No. 07</span>
+        <span>TRACE THE POINT · NOT THE BASE</span>
+      </div>
+
+      <div class="turn-banner" id="turnBanner" aria-live="polite">
+        <span class="turn-index">01</span>
+        <div><small>YOUR MOVE</small><strong>轮到你了</strong></div>
+      </div>
+
+      <aside class="telemetry" aria-label="游戏参数">
+        <div><span>FRICTION</span><b>μ VARIABLE</b></div>
+        <div><span>HIT RADIUS</span><b>16 px</b></div>
+        <div><span>RANGE VAR</span><b>±16%</b></div>
+        <div><span>EDGE</span><b>STOP</b></div>
+        <div><span>AI PROFILE</span><b id="aiMode">HUNTER</b></div>
+      </aside>
+
+      <div class="legend" aria-hidden="true">
+        <span><i class="legend-line player-line"></i>PLAYER TRACE</span>
+        <span><i class="legend-line ai-line"></i>AI TRACE</span>
+      </div>
+
+      <div class="control-dock" id="controlDock">
+        <div class="gesture-icon" aria-hidden="true">
+          <span class="gesture-pencil"></span><span class="gesture-arrow">↗</span>
+        </div>
+        <div class="instruction">
+          <strong id="instructionTitle">按住铅笔，朝目标方向拖动</strong>
+          <span id="instructionText">短距离拖动控制力度；滑程受角度、纸纹和随机摩擦影响。</span>
+        </div>
+        <div class="power-meter">
+          <div class="power-copy"><span>力度</span><b id="powerValue">0%</b></div>
+          <div class="power-track"><i id="powerFill"></i></div>
+        </div>
+      </div>
+
+      <div class="result-overlay" id="resultOverlay" hidden>
+        <div class="result-stamp" id="resultStamp">HIT!</div>
+        <p id="resultEyebrow">DIRECT TRACE CONTACT</p>
+        <h2 id="resultTitle">PLAYER WINS</h2>
+        <p id="resultText">你的铅笔轨迹截中了电脑的当前位置。</p>
+        <div class="result-stats">
+          <div><span>回合</span><b id="resultRounds">03</b></div>
+          <div><span>你的划痕</span><b id="resultDistance">824 px</b></div>
+        </div>
+        <button id="playAgainButton" type="button">再来一局 <span>→</span></button>
+      </div>
+    </section>
+  </main>
+
+  <script src="game.js"></script>
+</body>
+</html>
