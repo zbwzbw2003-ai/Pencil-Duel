@@ -24,7 +24,7 @@
   };
   const MAX_DRAG = 92;
   const MIN_DRAG = 10;
-  const HOLD_POWER_MS = 1200;
+  const AIM_WINDOW_MS = 300;
   const DRAG_POWER_WEIGHT = .7;
   const HOLD_POWER_WEIGHT = .3;
   const FRICTION = 940;
@@ -53,6 +53,7 @@
       aimStart: null,
       aimStartedAt: 0,
       aimDragDistance: 0,
+      aimFrozen: false,
       pointerId: null,
       winner: null,
       particles: [],
@@ -100,7 +101,7 @@
       turnBanner.querySelector('small').textContent = 'YOUR MOVE';
       turnBanner.querySelector('strong').textContent = '轮到你了';
       instructionTitle.textContent = '按住鼠标左键，朝出手方向滑动';
-      instructionText.textContent = '滑动距离与按住时长共同决定力度，松开左键出手。';
+      instructionText.textContent = '在 0.3 秒内滑动；距离与按住时长共同决定力度。';
       controlDock.classList.remove('waiting');
     } else {
       turnBanner.classList.add('ai-turn');
@@ -138,12 +139,13 @@
     state.aimStart = p;
     state.aimStartedAt = performance.now();
     state.aimDragDistance = 0;
+    state.aimFrozen = false;
     state.aimPoint = {...state.player.pos};
     state.aimPower = 0;
     canvas.setPointerCapture(e.pointerId);
     canvas.className = 'is-aiming';
     instructionTitle.textContent = '滑动决定方向，距离 + 时长决定力度';
-    instructionText.textContent = '力度会随按住时间增加；虚线是估算轨迹。';
+    instructionText.textContent = '前 0.3 秒内可调整；超时后方向和力度立即锁定。';
   }
 
   function pointerMove(e) {
@@ -153,6 +155,7 @@
   }
 
   function updateAimFromEvent(e) {
+    if (updateAimPower()) return;
     const p = pointFromEvent(e);
     const origin = state.player.pos;
     const dx = p.x - state.aimStart.x, dy = p.y - state.aimStart.y;
@@ -164,12 +167,18 @@
   }
 
   function updateAimPower() {
-    if (!state.aiming) return state.aimPower;
+    if (!state.aiming || state.aimFrozen) return state.aimFrozen;
+    const elapsed = performance.now() - state.aimStartedAt;
     const dragPower = Math.min(1, state.aimDragDistance / MAX_DRAG);
-    const holdPower = Math.min(1, (performance.now() - state.aimStartedAt) / HOLD_POWER_MS);
+    const holdPower = Math.min(1, elapsed / AIM_WINDOW_MS);
     state.aimPower = Math.min(1, dragPower * DRAG_POWER_WEIGHT + holdPower * HOLD_POWER_WEIGHT);
     setPower(state.aimPower);
-    return state.aimPower;
+    if (elapsed >= AIM_WINDOW_MS) {
+      state.aimFrozen = true;
+      instructionTitle.textContent = '0.3 秒参数已锁定';
+      instructionText.textContent = '继续移动不会改变轨迹，松开左键出手。';
+    }
+    return state.aimFrozen;
   }
 
   function pointerUp(e) {
@@ -177,7 +186,8 @@
     if (e.pointerType === 'mouse' && e.button !== 0) return;
     e.preventDefault();
     updateAimFromEvent(e);
-    const power = updateAimPower();
+    updateAimPower();
+    const power = state.aimPower;
     state.aiming = false;
     canvas.releasePointerCapture(e.pointerId);
     canvas.className = '';
@@ -202,6 +212,7 @@
     state.aimPower = 0;
     state.aimStart = null;
     state.aimDragDistance = 0;
+    state.aimFrozen = false;
     setPower(0);
     canvas.className = state.phase === 'playerAim' ? 'can-aim' : '';
     updateUI('player');
@@ -228,6 +239,7 @@
     state.aimPower = 0;
     state.aimStart = null;
     state.aimDragDistance = 0;
+    state.aimFrozen = false;
     setPower(0);
     startScratch();
   }

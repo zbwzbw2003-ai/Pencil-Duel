@@ -38,7 +38,7 @@
   };
   const MAX_DRAG = 92;
   const MIN_DRAG = 10;
-  const HOLD_POWER_MS = 1200;
+  const AIM_WINDOW_MS = 300;
   const DRAG_POWER_WEIGHT = .7;
   const HOLD_POWER_WEIGHT = .3;
   const FRICTION = 940;
@@ -69,7 +69,7 @@
     ai: {pos: {x: 0, y: 0}, angle: Math.PI},
     bases: {player: {x: 0, y: 0}, ai: {x: 0, y: 0}},
     trails: [], aiming: false, aimPoint: null, aimPower: 0,
-    aimStart: null, aimStartedAt: 0, aimDragDistance: 0,
+    aimStart: null, aimStartedAt: 0, aimDragDistance: 0, aimFrozen: false,
     pointerId: null, playback: null, pulse: 0, particles: [],
     pausedForDisconnect: false
   };
@@ -153,7 +153,7 @@
     turnLabel.textContent = mine ? 'YOUR MOVE' : 'RIVAL MOVE';
     turnText.textContent = mine ? '轮到你了' : '等待对手落笔';
     instructionTitle.textContent = mine ? '按住鼠标左键，朝出手方向滑动' : '对手正在选择方向与力度';
-    instructionText.textContent = mine ? '滑动距离与按住时长共同决定力度，松开左键出手。' : '对手松手后，双方会同时看到服务器确认的划痕。';
+    instructionText.textContent = mine ? '在 0.3 秒内滑动；距离与按住时长共同决定力度。' : '对手松手后，双方会同时看到服务器确认的划痕。';
     controlDock.classList.toggle('waiting', !mine);
     canvas.className = mine ? 'can-aim' : '';
     setPower(0);
@@ -449,11 +449,11 @@
     if (distance(p, unit.pos) > 60) return;
     e.preventDefault();
     state.aiming = true; state.pointerId = e.pointerId;
-    state.aimStart = p; state.aimStartedAt = performance.now(); state.aimDragDistance = 0;
+    state.aimStart = p; state.aimStartedAt = performance.now(); state.aimDragDistance = 0; state.aimFrozen = false;
     state.aimPoint = {...unit.pos}; state.aimPower = 0;
     canvas.setPointerCapture(e.pointerId); canvas.className = 'is-aiming';
     instructionTitle.textContent = '滑动决定方向，距离 + 时长决定力度';
-    instructionText.textContent = '力度会随按住时间增加；服务器会决定真实滑程。';
+    instructionText.textContent = '前 0.3 秒内可调整；超时后方向和力度立即锁定。';
   }
 
   function pointerMove(e) {
@@ -463,6 +463,7 @@
   }
 
   function updateAimFromEvent(e) {
+    if (updateAimPower()) return;
     const p = pointFromEvent(e), origin = state[net.side].pos;
     const dx = p.x - state.aimStart.x, dy = p.y - state.aimStart.y, len = Math.hypot(dx, dy);
     const scale = len > MAX_DRAG ? MAX_DRAG / len : 1;
@@ -472,12 +473,18 @@
   }
 
   function updateAimPower() {
-    if (!state.aiming) return state.aimPower;
+    if (!state.aiming || state.aimFrozen) return state.aimFrozen;
+    const elapsed = performance.now() - state.aimStartedAt;
     const dragPower = Math.min(1, state.aimDragDistance / MAX_DRAG);
-    const holdPower = Math.min(1, (performance.now() - state.aimStartedAt) / HOLD_POWER_MS);
+    const holdPower = Math.min(1, elapsed / AIM_WINDOW_MS);
     state.aimPower = Math.min(1, dragPower * DRAG_POWER_WEIGHT + holdPower * HOLD_POWER_WEIGHT);
     setPower(state.aimPower);
-    return state.aimPower;
+    if (elapsed >= AIM_WINDOW_MS) {
+      state.aimFrozen = true;
+      instructionTitle.textContent = '0.3 秒参数已锁定';
+      instructionText.textContent = '继续移动不会改变轨迹，松开左键出手。';
+    }
+    return state.aimFrozen;
   }
 
   function pointerUp(e) {
@@ -485,7 +492,8 @@
     if (e.pointerType === 'mouse' && e.button !== 0) return;
     e.preventDefault();
     updateAimFromEvent(e);
-    const power = updateAimPower();
+    updateAimPower();
+    const power = state.aimPower;
     state.aiming = false;
     canvas.releasePointerCapture(e.pointerId);
     const unit = state[net.side];
@@ -498,7 +506,7 @@
     const serverDx = dx / W * net.serverW;
     const serverDy = dy / H * net.serverH;
     sendShot(Math.atan2(serverDy, serverDx), Math.max(.08, power));
-    state.aimPower = 0; state.aimStart = null; state.aimDragDistance = 0; setPower(0);
+    state.aimPower = 0; state.aimStart = null; state.aimDragDistance = 0; state.aimFrozen = false; setPower(0);
   }
 
   function pointerCancel(e) {
@@ -508,6 +516,7 @@
     state.aimPower = 0;
     state.aimStart = null;
     state.aimDragDistance = 0;
+    state.aimFrozen = false;
     setPower(0);
     updateTurnUI();
   }
