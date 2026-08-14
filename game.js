@@ -101,7 +101,7 @@
       turnBanner.querySelector('small').textContent = 'YOUR MOVE';
       turnBanner.querySelector('strong').textContent = '轮到你了';
       instructionTitle.textContent = '按住鼠标左键，朝出手方向滑动';
-      instructionText.textContent = '在 0.3 秒内滑动；距离与按住时长共同决定力度。';
+      instructionText.textContent = '在 0.3 秒内滑动；提前松开或到时后都会立即出手。';
       controlDock.classList.remove('waiting');
     } else {
       turnBanner.classList.add('ai-turn');
@@ -145,17 +145,17 @@
     canvas.setPointerCapture(e.pointerId);
     canvas.className = 'is-aiming';
     instructionTitle.textContent = '滑动决定方向，距离 + 时长决定力度';
-    instructionText.textContent = '前 0.3 秒内可调整；超时后方向和力度立即锁定。';
+    instructionText.textContent = '前 0.3 秒内可调整；计时结束时铅笔会自动滑出。';
   }
 
   function pointerMove(e) {
     if (!state.aiming || e.pointerId !== state.pointerId) return;
     e.preventDefault();
-    updateAimFromEvent(e);
+    if (updateAimFromEvent(e)) commitPlayerAim();
   }
 
   function updateAimFromEvent(e) {
-    if (updateAimPower()) return;
+    if (updateAimPower()) return true;
     const p = pointFromEvent(e);
     const origin = state.player.pos;
     const dx = p.x - state.aimStart.x, dy = p.y - state.aimStart.y;
@@ -163,7 +163,7 @@
     const scale = len > MAX_DRAG ? MAX_DRAG / len : 1;
     state.aimPoint = {x: origin.x + dx * scale, y: origin.y + dy * scale};
     state.aimDragDistance = len;
-    updateAimPower();
+    return updateAimPower();
   }
 
   function updateAimPower() {
@@ -175,8 +175,6 @@
     setPower(state.aimPower);
     if (elapsed >= AIM_WINDOW_MS) {
       state.aimFrozen = true;
-      instructionTitle.textContent = '0.3 秒参数已锁定';
-      instructionText.textContent = '继续移动不会改变轨迹，松开左键出手。';
     }
     return state.aimFrozen;
   }
@@ -187,9 +185,16 @@
     e.preventDefault();
     updateAimFromEvent(e);
     updateAimPower();
+    commitPlayerAim();
+  }
+
+  function commitPlayerAim() {
+    if (!state.aiming) return;
     const power = state.aimPower;
     state.aiming = false;
-    canvas.releasePointerCapture(e.pointerId);
+    if (state.pointerId !== null && canvas.hasPointerCapture(state.pointerId)) {
+      canvas.releasePointerCapture(state.pointerId);
+    }
     canvas.className = '';
     const dx = state.aimPoint.x - state.player.pos.x;
     const dy = state.aimPoint.y - state.player.pos.y;
@@ -246,7 +251,7 @@
 
   function update(dt) {
     state.pulse += dt;
-    if (state.aiming) updateAimPower();
+    if (state.aiming && updateAimPower()) commitPlayerAim();
     if (state.phase === 'moving') updateMovement(dt);
     state.particles.forEach(p => { p.life -= dt; p.x += p.vx * dt; p.y += p.vy * dt; p.vy += 90 * dt; });
     state.particles = state.particles.filter(p => p.life > 0);

@@ -153,7 +153,7 @@
     turnLabel.textContent = mine ? 'YOUR MOVE' : 'RIVAL MOVE';
     turnText.textContent = mine ? '轮到你了' : '等待对手落笔';
     instructionTitle.textContent = mine ? '按住鼠标左键，朝出手方向滑动' : '对手正在选择方向与力度';
-    instructionText.textContent = mine ? '在 0.3 秒内滑动；距离与按住时长共同决定力度。' : '对手松手后，双方会同时看到服务器确认的划痕。';
+    instructionText.textContent = mine ? '在 0.3 秒内滑动；提前松开或到时后都会立即出手。' : '对手松手后，双方会同时看到服务器确认的划痕。';
     controlDock.classList.toggle('waiting', !mine);
     canvas.className = mine ? 'can-aim' : '';
     setPower(0);
@@ -453,23 +453,23 @@
     state.aimPoint = {...unit.pos}; state.aimPower = 0;
     canvas.setPointerCapture(e.pointerId); canvas.className = 'is-aiming';
     instructionTitle.textContent = '滑动决定方向，距离 + 时长决定力度';
-    instructionText.textContent = '前 0.3 秒内可调整；超时后方向和力度立即锁定。';
+    instructionText.textContent = '前 0.3 秒内可调整；计时结束时铅笔会自动滑出。';
   }
 
   function pointerMove(e) {
     if (!state.aiming || e.pointerId !== state.pointerId) return;
     e.preventDefault();
-    updateAimFromEvent(e);
+    if (updateAimFromEvent(e)) commitOnlineAim();
   }
 
   function updateAimFromEvent(e) {
-    if (updateAimPower()) return;
+    if (updateAimPower()) return true;
     const p = pointFromEvent(e), origin = state[net.side].pos;
     const dx = p.x - state.aimStart.x, dy = p.y - state.aimStart.y, len = Math.hypot(dx, dy);
     const scale = len > MAX_DRAG ? MAX_DRAG / len : 1;
     state.aimPoint = {x: origin.x + dx * scale, y: origin.y + dy * scale};
     state.aimDragDistance = len;
-    updateAimPower();
+    return updateAimPower();
   }
 
   function updateAimPower() {
@@ -481,8 +481,6 @@
     setPower(state.aimPower);
     if (elapsed >= AIM_WINDOW_MS) {
       state.aimFrozen = true;
-      instructionTitle.textContent = '0.3 秒参数已锁定';
-      instructionText.textContent = '继续移动不会改变轨迹，松开左键出手。';
     }
     return state.aimFrozen;
   }
@@ -493,9 +491,16 @@
     e.preventDefault();
     updateAimFromEvent(e);
     updateAimPower();
+    commitOnlineAim();
+  }
+
+  function commitOnlineAim() {
+    if (!state.aiming) return;
     const power = state.aimPower;
     state.aiming = false;
-    canvas.releasePointerCapture(e.pointerId);
+    if (state.pointerId !== null && canvas.hasPointerCapture(state.pointerId)) {
+      canvas.releasePointerCapture(state.pointerId);
+    }
     const unit = state[net.side];
     const dx = state.aimPoint.x - unit.pos.x, dy = state.aimPoint.y - unit.pos.y;
     const len = Math.hypot(dx, dy);
@@ -535,7 +540,7 @@
 
   function update(dt) {
     state.pulse += dt;
-    if (state.aiming) updateAimPower();
+    if (state.aiming && updateAimPower()) commitOnlineAim();
     if (state.phase === 'networkMoving') updatePlayback(dt);
     state.particles.forEach(p => { p.life -= dt; p.x += p.vx * dt; p.y += p.vy * dt; p.vy += 90 * dt; });
     state.particles = state.particles.filter(p => p.life > 0);
