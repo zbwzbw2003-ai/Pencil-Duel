@@ -100,16 +100,16 @@
     if (turn === 'player') {
       turnBanner.classList.remove('ai-turn');
       turnBanner.querySelector('small').textContent = 'YOUR MOVE';
-      turnBanner.querySelector('strong').textContent = '轮到你了';
-      instructionTitle.textContent = '按住鼠标左键，朝出手方向滑动';
-      instructionText.textContent = '在 0.3 秒内滑动；提前松开或到时后都会立即出手。';
+      turnBanner.querySelector('strong').textContent = 'Draw your strike';
+      instructionTitle.textContent = 'Hold left-click and flick toward your target';
+      instructionText.textContent = 'Release early or auto-launch at 0.3 seconds.';
       controlDock.classList.remove('waiting');
     } else {
       turnBanner.classList.add('ai-turn');
       turnBanner.querySelector('small').textContent = 'AI MOVE';
-      turnBanner.querySelector('strong').textContent = '电脑正在计算轨迹';
-      instructionTitle.textContent = '电脑正在预判你的落点';
-      instructionText.textContent = '它会尝试直接截击，同时规避危险落点。';
+      turnBanner.querySelector('strong').textContent = 'AI is plotting a line';
+      instructionTitle.textContent = 'The hunter is predicting your endpoint';
+      instructionText.textContent = 'It balances a direct center hit against a safer landing.';
       controlDock.classList.add('waiting');
     }
     setPower(0);
@@ -146,8 +146,8 @@
     state.aimPower = 0;
     canvas.setPointerCapture(e.pointerId);
     canvas.className = 'is-aiming';
-    instructionTitle.textContent = '铅笔尖严格沿鼠标滑动中心线';
-    instructionText.textContent = '前 0.3 秒内可调整；计时结束时铅笔会自动滑出。';
+    instructionTitle.textContent = 'The pencil tip follows your exact gesture centerline';
+    instructionText.textContent = 'Adjust for 0.3 seconds; the pencil launches when time expires.';
   }
 
   function pointerMove(e) {
@@ -326,7 +326,7 @@
     if (state.phase !== 'aiThinking') return;
     const choice = chooseAiShot();
     aiMode.textContent = choice.direct ? 'LOCKED' : choice.mode;
-    turnBanner.querySelector('strong').textContent = choice.direct ? '电脑锁定了截击线' : '电脑开始滑行';
+    turnBanner.querySelector('strong').textContent = choice.direct ? 'AI locked an intercept line' : 'AI pencil in motion';
     launch('ai', choice.velocity);
   }
 
@@ -417,8 +417,8 @@
       resultOverlay.classList.toggle('lost', winner === 'ai');
       resultTitle.textContent = winner === 'player' ? 'PLAYER WINS' : 'COMPUTER WINS';
       resultText.textContent = winner === 'player'
-        ? '你的铅笔轨迹截中了电脑的当前位置。'
-        : '电脑的铅笔轨迹先一步截中了你。';
+        ? "Your pencil line crossed the computer's exact center point."
+        : 'The computer crossed your center point first.';
       resultRounds.textContent = String(state.round).padStart(2, '0');
       resultDistance.textContent = `${Math.round(state.player.distance)} px`;
     }, 620);
@@ -555,26 +555,49 @@
     const moving = state.phase === 'moving' && state.active === owner;
     const color = owner === 'player' ? COLORS.player : COLORS.ai;
     const dark = owner === 'player' ? COLORS.playerDark : COLORS.aiDark;
-    const length = 54;
+    const highlight = owner === 'player' ? '#63e3d7' : '#ffb27e';
+    const eraser = owner === 'player' ? '#3bc8bd' : '#f28b58';
+    const length = Math.min(58, Math.max(38, W * .105));
     ctx.save();
     ctx.translate(unit.pos.x, unit.pos.y);
     ctx.rotate(unit.angle);
-    ctx.shadowColor = 'rgba(24,37,35,.22)'; ctx.shadowBlur = 8; ctx.shadowOffsetY = 5;
-    ctx.fillStyle = dark;
-    roundRect(ctx, -length, -5, length - 8, 10, 2); ctx.fill();
-    ctx.shadowColor = 'transparent';
-    ctx.fillStyle = color;
-    ctx.fillRect(-length + 5, -3.2, length - 14, 3.2);
-    ctx.fillStyle = '#dccba6';
-    ctx.beginPath(); ctx.moveTo(-8, -5); ctx.lineTo(0, 0); ctx.lineTo(-8, 5); ctx.closePath(); ctx.fill();
-    ctx.fillStyle = '#283735';
-    ctx.beginPath(); ctx.moveTo(-2.8, -1.5); ctx.lineTo(0, 0); ctx.lineTo(-2.8, 1.5); ctx.closePath(); ctx.fill();
-    ctx.fillStyle = '#d5d1c5'; ctx.fillRect(-length - 6, -5, 7, 10);
-    ctx.fillStyle = owner === 'player' ? '#45c8c1' : '#f49a63'; ctx.fillRect(-length - 10, -5, 5, 10);
+
     if (moving) {
-      ctx.globalAlpha = .16; ctx.strokeStyle = color; ctx.lineWidth = 6;
-      ctx.beginPath(); ctx.moveTo(-length - 18, 0); ctx.lineTo(-length - 48, 0); ctx.stroke();
+      const blur = ctx.createLinearGradient(-length - 56, 0, -length, 0);
+      blur.addColorStop(0, 'rgba(255,255,255,0)');
+      blur.addColorStop(1, owner === 'player' ? 'rgba(15,156,156,.22)' : 'rgba(230,119,55,.22)');
+      ctx.strokeStyle = blur; ctx.lineWidth = 9; ctx.lineCap = 'round';
+      ctx.beginPath(); ctx.moveTo(-length - 54, 0); ctx.lineTo(-length - 8, 0); ctx.stroke();
     }
+
+    ctx.shadowColor = 'rgba(12,30,29,.34)'; ctx.shadowBlur = 13; ctx.shadowOffsetX = 2; ctx.shadowOffsetY = 7;
+    ctx.fillStyle = dark; roundRect(ctx, -length, -6, length - 8, 12, 2.5); ctx.fill();
+    ctx.shadowColor = 'transparent';
+
+    const body = ctx.createLinearGradient(0, -6, 0, 6);
+    body.addColorStop(0, dark); body.addColorStop(.18, color); body.addColorStop(.46, highlight); body.addColorStop(.58, color); body.addColorStop(1, dark);
+    ctx.fillStyle = body; roundRect(ctx, -length + 1, -5.4, length - 9, 10.8, 2); ctx.fill();
+    ctx.fillStyle = 'rgba(255,255,255,.3)';
+    ctx.beginPath(); ctx.moveTo(-length + 5, -4.4); ctx.lineTo(-9, -4.4); ctx.lineTo(-9, -2.2); ctx.lineTo(-length + 5, -1.7); ctx.closePath(); ctx.fill();
+    ctx.fillStyle = 'rgba(0,0,0,.16)';
+    ctx.beginPath(); ctx.moveTo(-length + 4, 2.4); ctx.lineTo(-9, 2); ctx.lineTo(-9, 5); ctx.lineTo(-length + 4, 5); ctx.closePath(); ctx.fill();
+
+    const wood = ctx.createLinearGradient(-8, 0, 0, 0);
+    wood.addColorStop(0, '#cda96f'); wood.addColorStop(.48, '#f1dbaf'); wood.addColorStop(1, '#b58d56');
+    ctx.fillStyle = wood;
+    ctx.beginPath(); ctx.moveTo(-8, -6); ctx.lineTo(0, 0); ctx.lineTo(-8, 6); ctx.closePath(); ctx.fill();
+    ctx.strokeStyle = 'rgba(91,62,31,.2)'; ctx.lineWidth = .65;
+    ctx.beginPath(); ctx.moveTo(-8, -3.4); ctx.lineTo(-1.8, 0); ctx.lineTo(-8, 3.4); ctx.stroke();
+    ctx.fillStyle = '#283735';
+    ctx.beginPath(); ctx.moveTo(-2.8, -1.65); ctx.lineTo(.6, 0); ctx.lineTo(-2.8, 1.65); ctx.closePath(); ctx.fill();
+
+    const metal = ctx.createLinearGradient(0, -6, 0, 6);
+    metal.addColorStop(0, '#8f9997'); metal.addColorStop(.28, '#f1f2ed'); metal.addColorStop(.5, '#aeb7b4'); metal.addColorStop(.72, '#fafaf5'); metal.addColorStop(1, '#727d7a');
+    ctx.fillStyle = metal; ctx.fillRect(-length - 7, -6, 8, 12);
+    ctx.strokeStyle = 'rgba(57,69,66,.28)'; ctx.lineWidth = .6;
+    [-length - 5, -length - 2].forEach(x => { ctx.beginPath(); ctx.moveTo(x, -5.5); ctx.lineTo(x, 5.5); ctx.stroke(); });
+    ctx.fillStyle = eraser; roundRect(ctx, -length - 14, -5.7, 7, 11.4, 2.5); ctx.fill();
+    ctx.fillStyle = 'rgba(255,255,255,.28)'; roundRect(ctx, -length - 13, -4.5, 2, 8, 1); ctx.fill();
     ctx.restore();
   }
 

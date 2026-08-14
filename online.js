@@ -151,9 +151,9 @@
     const orangeTurn = state.active === 'ai';
     turnBanner.classList.toggle('ai-turn', orangeTurn);
     turnLabel.textContent = mine ? 'YOUR MOVE' : 'RIVAL MOVE';
-    turnText.textContent = mine ? '轮到你了' : '等待对手落笔';
-    instructionTitle.textContent = mine ? '按住鼠标左键，朝出手方向滑动' : '对手正在选择方向与力度';
-    instructionText.textContent = mine ? '在 0.3 秒内滑动；提前松开或到时后都会立即出手。' : '对手松手后，双方会同时看到服务器确认的划痕。';
+    turnText.textContent = mine ? 'Draw your strike' : 'Waiting for rival input';
+    instructionTitle.textContent = mine ? 'Hold left-click and flick toward your target' : 'Your rival is choosing direction and impulse';
+    instructionText.textContent = mine ? 'Release early or auto-launch at 0.3 seconds.' : 'Both players receive the same server-confirmed trace.';
     controlDock.classList.toggle('waiting', !mine);
     canvas.className = mine ? 'can-aim' : '';
     setPower(0);
@@ -161,12 +161,12 @@
 
   function updatePresence(presence) {
     net.presence = presence || net.presence;
-    leftPlayerMeta.textContent = net.side === 'player' ? '你' : (net.presence.player ? '对手在线' : '等待连接');
-    rightPlayerMeta.textContent = net.side === 'ai' ? '你' : (net.presence.ai ? '对手在线' : '等待连接');
+    leftPlayerMeta.textContent = net.side === 'player' ? 'YOU' : (net.presence.player ? 'RIVAL ONLINE' : 'WAITING');
+    rightPlayerMeta.textContent = net.side === 'ai' ? 'YOU' : (net.presence.ai ? 'RIVAL ONLINE' : 'WAITING');
     if (net.presence.player && net.presence.ai) {
       networkState.textContent = 'LIVE';
       if (state.status === 'waiting') {
-        waitingText.innerHTML = '<i></i> 两名玩家已连接，准备落笔';
+        waitingText.innerHTML = '<i></i> Both players connected. Sharpen up!';
       }
       if (state.pausedForDisconnect && state.status === 'playing') {
         state.pausedForDisconnect = false;
@@ -179,7 +179,7 @@
         state.pausedForDisconnect = true;
         state.phase = 'onlineWaiting';
         turnLabel.textContent = 'PAUSED';
-        turnText.textContent = '对手已断线，等待重连';
+        turnText.textContent = 'Rival disconnected — waiting to reconnect';
         canvas.className = '';
         controlDock.classList.add('waiting');
       }
@@ -188,7 +188,7 @@
 
   async function createRoom() {
     if (!canUseNetwork()) return;
-    setLobbyBusy(true, '正在 Cloudflare 边缘创建房间…');
+    setLobbyBusy(true, 'Creating a room at the Cloudflare edge…');
     try {
       const response = await fetch(`${APP_BASE}/api/rooms`, {
         method: 'POST',
@@ -196,11 +196,11 @@
         body: JSON.stringify({width: Math.round(W), height: Math.round(H)})
       });
       const data = await response.json();
-      if (!response.ok) throw new Error(data.error || '创建失败');
+      if (!response.ok) throw new Error(data.error || 'Room creation failed');
       saveCredentials(data.roomCode, data.token);
       connectSocket();
     } catch (error) {
-      setLobbyBusy(false, `无法创建房间：${error.message}`);
+      setLobbyBusy(false, `Could not create room: ${error.message}`);
     }
   }
 
@@ -208,11 +208,11 @@
     if (!canUseNetwork()) return;
     const code = normalizeCode(roomInput.value);
     if (code.length !== 6) {
-      lobbyStatus.textContent = '请输入 6 位房间码。';
+      lobbyStatus.textContent = 'Enter a 6-character room code.';
       roomInput.focus();
       return;
     }
-    setLobbyBusy(true, '正在加入房间…');
+    setLobbyBusy(true, 'Joining the room…');
     try {
       const storedToken = localStorage.getItem(`pencil-duel:${code}`) || '';
       const response = await fetch(`${APP_BASE}/api/rooms/${code}/join`, {
@@ -221,7 +221,7 @@
         body: JSON.stringify({token: storedToken})
       });
       const data = await response.json();
-      if (!response.ok) throw new Error(data.error || '加入失败');
+      if (!response.ok) throw new Error(data.error || 'Could not join room');
       saveCredentials(code, data.token);
       connectSocket();
     } catch (error) {
@@ -266,14 +266,14 @@
       networkState.textContent = 'RECONNECT';
       canvas.className = '';
       if (event.code === 4003 || event.code === 4004) {
-        setLobbyBusy(false, event.reason || '房间凭证无效，请重新加入。');
+        setLobbyBusy(false, event.reason || 'Room credentials expired. Please join again.');
         lobbyOverlay.hidden = false;
         return;
       }
       if (!net.intentionallyClosed && net.retries < 6) {
         net.retries += 1;
         net.reconnectTimer = setTimeout(() => connectSocket(true), Math.min(7000, 700 * 2 ** net.retries));
-        showToast('连接中断，正在自动重连…');
+        showToast('Connection lost. Reconnecting…');
       }
     });
     socket.addEventListener('error', () => {
@@ -304,7 +304,7 @@
       return;
     }
     if (message.type === 'error') {
-      showToast(message.message || '服务器拒绝了这次操作。');
+      showToast(message.message || 'The server rejected that action.');
       if (state.status === 'playing') {
         state.phase = state.active === net.side ? 'playerAim' : 'onlineWaiting';
         updateTurnUI();
@@ -322,7 +322,7 @@
     state.playback = {path, trail, elapsed: 0, duration: Math.max(.18, shot.duration), pendingState, index: 0};
     turnBanner.classList.toggle('ai-turn', owner === 'ai');
     turnLabel.textContent = 'SERVER TRACE';
-    turnText.textContent = owner === net.side ? '你的铅笔正在滑动' : '对手的铅笔正在滑动';
+    turnText.textContent = owner === net.side ? 'Your pencil is in motion' : "Rival's pencil is in motion";
     canvas.className = '';
   }
 
@@ -367,16 +367,16 @@
 
   function sendShot(angle, power) {
     if (!net.connected || net.socket?.readyState !== WebSocket.OPEN) {
-      showToast('网络尚未连接。');
+      showToast('Network connection is not ready.');
       state.phase = 'playerAim';
       return;
     }
     net.socket.send(JSON.stringify({type: 'shoot', angle, power}));
     state.phase = 'onlineWaiting';
     turnLabel.textContent = 'SUBMITTED';
-    turnText.textContent = '服务器正在计算随机滑程';
-    instructionTitle.textContent = '已提交方向与力度';
-    instructionText.textContent = '最终落点由服务器统一计算，双方结果完全一致。';
+    turnText.textContent = 'Server is resolving the slide';
+    instructionTitle.textContent = 'Direction and impulse submitted';
+    instructionText.textContent = 'The authoritative server gives both players one identical result.';
     controlDock.classList.add('waiting');
     canvas.className = '';
   }
@@ -385,7 +385,7 @@
     if (!net.connected || state.status !== 'finished') return;
     net.socket.send(JSON.stringify({type: 'restart'}));
     resetButton.disabled = true;
-    showToast('已向服务器发起重赛。');
+    showToast('Rematch requested.');
   }
 
   function showWaitingRoom() {
@@ -393,7 +393,7 @@
     lobbyActions.hidden = true;
     roomReady.hidden = false;
     shareCode.textContent = net.roomCode;
-    waitingText.innerHTML = '<i></i> 正在等待另一名玩家…';
+    waitingText.innerHTML = '<i></i> Waiting for another player…';
     lobbyStatus.textContent = '';
     roomNumber.textContent = net.roomCode;
     networkState.textContent = 'WAITING';
@@ -407,7 +407,7 @@
 
   function canUseNetwork() {
     if (location.protocol === 'file:') {
-      lobbyStatus.textContent = '当前是本地文件模式。请部署到 Cloudflare，或运行 npm run dev 后再联机。';
+      lobbyStatus.textContent = 'Online play needs Cloudflare deployment or a local npm run dev server.';
       return false;
     }
     return true;
@@ -418,8 +418,8 @@
     url.searchParams.set('room', net.roomCode);
     const text = url.toString();
     navigator.clipboard?.writeText(text).then(
-      () => showToast('邀请链接已复制。'),
-      () => window.prompt('复制这个邀请链接：', text)
+      () => showToast('Invite link copied.'),
+      () => window.prompt('Copy this invite link:', text)
     );
   }
 
@@ -428,7 +428,7 @@
     resultOverlay.hidden = false;
     resultOverlay.classList.toggle('lost', !won);
     resultTitle.textContent = won ? 'YOU WIN' : 'OPPONENT WINS';
-    resultText.textContent = won ? '服务器确认：你的轨迹先截中了对手。' : '服务器确认：对手的轨迹先截中了你。';
+    resultText.textContent = won ? "Server confirmed: your line crossed the rival's center first." : 'Server confirmed: the rival crossed your center first.';
     resultRoom.textContent = net.roomCode;
     resultRounds.textContent = String(state.round).padStart(2, '0');
     resetButton.disabled = false;
@@ -452,8 +452,8 @@
     state.aimStart = p; state.aimVector = {x: 0, y: 0}; state.aimStartedAt = performance.now(); state.aimDragDistance = 0; state.aimFrozen = false;
     state.aimPoint = {...unit.pos}; state.aimPower = 0;
     canvas.setPointerCapture(e.pointerId); canvas.className = 'is-aiming';
-    instructionTitle.textContent = '铅笔尖严格沿鼠标滑动中心线';
-    instructionText.textContent = '前 0.3 秒内可调整；计时结束时铅笔会自动滑出。';
+    instructionTitle.textContent = 'The pencil tip follows your exact gesture centerline';
+    instructionText.textContent = 'Adjust for 0.3 seconds; the pencil launches when time expires.';
   }
 
   function pointerMove(e) {
@@ -620,14 +620,27 @@
 
   function drawPencil(owner) {
     const unit = state[owner], color = owner === 'player' ? COLORS.player : COLORS.ai, dark = owner === 'player' ? COLORS.playerDark : COLORS.aiDark;
-    const moving = state.phase === 'networkMoving' && state.active === owner, length = 54;
-    ctx.save(); ctx.translate(unit.pos.x, unit.pos.y); ctx.rotate(unit.angle); ctx.shadowColor = 'rgba(24,37,35,.22)'; ctx.shadowBlur = 8; ctx.shadowOffsetY = 5;
-    ctx.fillStyle = dark; roundedRect(ctx, -length, -5, length - 8, 10, 2); ctx.fill(); ctx.shadowColor = 'transparent';
-    ctx.fillStyle = color; ctx.fillRect(-length + 5, -3.2, length - 14, 3.2);
-    ctx.fillStyle = '#dccba6'; ctx.beginPath(); ctx.moveTo(-8, -5); ctx.lineTo(0, 0); ctx.lineTo(-8, 5); ctx.closePath(); ctx.fill();
-    ctx.fillStyle = '#283735'; ctx.beginPath(); ctx.moveTo(-2.8, -1.5); ctx.lineTo(0, 0); ctx.lineTo(-2.8, 1.5); ctx.closePath(); ctx.fill();
-    ctx.fillStyle = '#d5d1c5'; ctx.fillRect(-length - 6, -5, 7, 10); ctx.fillStyle = owner === 'player' ? '#45c8c1' : '#f49a63'; ctx.fillRect(-length - 10, -5, 5, 10);
-    if (moving) { ctx.globalAlpha = .16; ctx.strokeStyle = color; ctx.lineWidth = 6; ctx.beginPath(); ctx.moveTo(-length - 18, 0); ctx.lineTo(-length - 42, 0); ctx.stroke(); }
+    const highlight = owner === 'player' ? '#63e3d7' : '#ffb27e', eraser = owner === 'player' ? '#3bc8bd' : '#f28b58';
+    const moving = state.phase === 'networkMoving' && state.active === owner, length = Math.min(58, Math.max(38, W * .105));
+    ctx.save(); ctx.translate(unit.pos.x, unit.pos.y); ctx.rotate(unit.angle);
+    if (moving) {
+      const blur = ctx.createLinearGradient(-length - 56, 0, -length, 0); blur.addColorStop(0, 'rgba(255,255,255,0)'); blur.addColorStop(1, owner === 'player' ? 'rgba(15,156,156,.22)' : 'rgba(230,119,55,.22)');
+      ctx.strokeStyle = blur; ctx.lineWidth = 9; ctx.lineCap = 'round'; ctx.beginPath(); ctx.moveTo(-length - 54, 0); ctx.lineTo(-length - 8, 0); ctx.stroke();
+    }
+    ctx.shadowColor = 'rgba(12,30,29,.34)'; ctx.shadowBlur = 13; ctx.shadowOffsetX = 2; ctx.shadowOffsetY = 7;
+    ctx.fillStyle = dark; roundedRect(ctx, -length, -6, length - 8, 12, 2.5); ctx.fill(); ctx.shadowColor = 'transparent';
+    const body = ctx.createLinearGradient(0, -6, 0, 6); body.addColorStop(0, dark); body.addColorStop(.18, color); body.addColorStop(.46, highlight); body.addColorStop(.58, color); body.addColorStop(1, dark);
+    ctx.fillStyle = body; roundedRect(ctx, -length + 1, -5.4, length - 9, 10.8, 2); ctx.fill();
+    ctx.fillStyle = 'rgba(255,255,255,.3)'; ctx.beginPath(); ctx.moveTo(-length + 5, -4.4); ctx.lineTo(-9, -4.4); ctx.lineTo(-9, -2.2); ctx.lineTo(-length + 5, -1.7); ctx.closePath(); ctx.fill();
+    ctx.fillStyle = 'rgba(0,0,0,.16)'; ctx.beginPath(); ctx.moveTo(-length + 4, 2.4); ctx.lineTo(-9, 2); ctx.lineTo(-9, 5); ctx.lineTo(-length + 4, 5); ctx.closePath(); ctx.fill();
+    const wood = ctx.createLinearGradient(-8, 0, 0, 0); wood.addColorStop(0, '#cda96f'); wood.addColorStop(.48, '#f1dbaf'); wood.addColorStop(1, '#b58d56');
+    ctx.fillStyle = wood; ctx.beginPath(); ctx.moveTo(-8, -6); ctx.lineTo(0, 0); ctx.lineTo(-8, 6); ctx.closePath(); ctx.fill();
+    ctx.strokeStyle = 'rgba(91,62,31,.2)'; ctx.lineWidth = .65; ctx.beginPath(); ctx.moveTo(-8, -3.4); ctx.lineTo(-1.8, 0); ctx.lineTo(-8, 3.4); ctx.stroke();
+    ctx.fillStyle = '#283735'; ctx.beginPath(); ctx.moveTo(-2.8, -1.65); ctx.lineTo(.6, 0); ctx.lineTo(-2.8, 1.65); ctx.closePath(); ctx.fill();
+    const metal = ctx.createLinearGradient(0, -6, 0, 6); metal.addColorStop(0, '#8f9997'); metal.addColorStop(.28, '#f1f2ed'); metal.addColorStop(.5, '#aeb7b4'); metal.addColorStop(.72, '#fafaf5'); metal.addColorStop(1, '#727d7a');
+    ctx.fillStyle = metal; ctx.fillRect(-length - 7, -6, 8, 12); ctx.strokeStyle = 'rgba(57,69,66,.28)'; ctx.lineWidth = .6;
+    [-length - 5, -length - 2].forEach(x => { ctx.beginPath(); ctx.moveTo(x, -5.5); ctx.lineTo(x, 5.5); ctx.stroke(); });
+    ctx.fillStyle = eraser; roundedRect(ctx, -length - 14, -5.7, 7, 11.4, 2.5); ctx.fill(); ctx.fillStyle = 'rgba(255,255,255,.28)'; roundedRect(ctx, -length - 13, -4.5, 2, 8, 1); ctx.fill();
     ctx.restore();
   }
 

@@ -1,10 +1,10 @@
 <!doctype html>
-<html lang="zh-CN">
+<html lang="en">
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
   <meta name="theme-color" content="#123c3d" />
-  <title>互联网对战 · 铅迹追猎</title>
+  <title>Pencil Duel · Online Arena</title>
   <link rel="stylesheet" href="styles.css" />
 </head>
 <body>
@@ -12,36 +12,36 @@
     <header class="topbar">
       <div class="brand">
         <span class="brand-mark" aria-hidden="true"><i></i><i></i><i></i></span>
-        <div><p>PENCIL DUEL</p><h1>互联网对战</h1></div>
+        <div><p>PENCIL DUEL · ONLINE</p><h1>LIVE ARENA</h1></div>
       </div>
 
-      <div class="scoreboard" aria-label="联机对局状态">
+      <div class="scoreboard" aria-label="Online match status">
         <div class="side player-side">
           <span class="side-dot"></span>
-          <div><b>PLAYER 1</b><small id="leftPlayerMeta">等待连接</small></div>
+          <div><b>PLAYER 1</b><small id="leftPlayerMeta">WAITING</small></div>
         </div>
         <div class="round room-display">
           <small>ROOM</small>
           <strong id="roomNumber">——</strong>
         </div>
         <div class="side ai-side">
-          <div><b>PLAYER 2</b><small id="rightPlayerMeta">等待连接</small></div>
+          <div><b>PLAYER 2</b><small id="rightPlayerMeta">WAITING</small></div>
           <span class="side-dot"></span>
         </div>
       </div>
 
       <div class="header-actions">
-        <a class="icon-button" href="index.html" aria-label="返回人机模式">
-          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15 18l-6-6 6-6"/></svg><span>人机</span>
+        <a class="icon-button" href="index.html" aria-label="Return to solo mode">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15 18l-6-6 6-6"/></svg><span>SOLO</span>
         </a>
-        <button class="icon-button" id="resetButton" type="button" aria-label="重新对战" disabled>
-          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20 11a8 8 0 1 0-2.34 5.66M20 4v7h-7" /></svg><span>重赛</span>
+        <button class="icon-button" id="resetButton" type="button" aria-label="Request a rematch" disabled>
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20 11a8 8 0 1 0-2.34 5.66M20 4v7h-7" /></svg><span>REMATCH</span>
         </button>
       </div>
     </header>
 
     <section class="board-wrap" id="boardWrap">
-      <canvas id="onlineCanvas" aria-label="互联网铅笔轨迹对战游戏区域"></canvas>
+      <canvas id="onlineCanvas" aria-label="Online Pencil Duel game board"></canvas>
 
       <div class="paper-title" aria-hidden="true">
         <span>AUTHORITATIVE MATCH</span><span>TRACE CONTACT · EDGE STOPS</span>
@@ -49,10 +49,10 @@
 
       <div class="turn-banner" id="turnBanner" aria-live="polite">
         <span class="turn-index" id="turnIndex">01</span>
-        <div><small id="turnLabel">ONLINE</small><strong id="turnText">建立房间后开始</strong></div>
+        <div><small id="turnLabel">ONLINE</small><strong id="turnText">Create a room to begin</strong></div>
       </div>
 
-      <aside class="telemetry" aria-label="网络与游戏状态">
+      <aside class="telemetry" aria-label="Network and game status">
         <div><span>NETWORK</span><b id="networkState">OFFLINE</b></div>
         <div><span>PHYSICS</span><b>SERVER</b></div>
         <div><span>RANGE VAR</span><b>±16%</b></div>
@@ -67,11 +67,11 @@
       <div class="control-dock waiting" id="controlDock">
         <div class="gesture-icon" aria-hidden="true"><span class="gesture-pencil"></span><span class="gesture-arrow">↗</span></div>
         <div class="instruction">
-          <strong id="instructionTitle">创建或加入互联网房间</strong>
-          <span id="instructionText">服务器会统一计算随机滑程、轨迹与命中结果。</span>
+          <strong id="instructionTitle">Create or join an online room</strong>
+          <span id="instructionText">The server resolves friction, traces, and center-point hits.</span>
         </div>
         <div class="power-meter">
-          <div class="power-copy"><span>力度</span><b id="powerValue">0%</b></div>
+          <div class="power-copy"><span>IMPULSE</span><b id="powerValue">0%</b></div>
           <div class="power-track"><i id="powerFill"></i></div>
         </div>
       </div>
@@ -79,30 +79,30 @@
       <div class="lobby-overlay" id="lobbyOverlay">
         <section class="lobby-card" aria-labelledby="lobbyTitle">
           <div class="online-kicker"><i></i> CLOUDFLARE EDGE MATCH</div>
-          <h2 id="lobbyTitle">两支铅笔，一张云端纸</h2>
-          <p class="lobby-copy">创建房间并把代码发给朋友，或输入对方的房间码。无需账号。</p>
+          <h2 id="lobbyTitle">Two pencils. One cloud paper.</h2>
+          <p class="lobby-copy">Create a room and share the code, or enter a friend's room. No account required.</p>
 
           <div class="lobby-actions" id="lobbyActions">
             <button class="primary-action" id="createRoomButton" type="button">
-              <span><small>HOST A MATCH</small>创建新房间</span><b>＋</b>
+              <span><small>HOST A MATCH</small>CREATE NEW ROOM</span><b>＋</b>
             </button>
-            <div class="lobby-divider"><span>或者加入</span></div>
+            <div class="lobby-divider"><span>OR JOIN A ROOM</span></div>
             <div class="join-row">
-              <label for="roomInput">房间码</label>
+              <label for="roomInput">ROOM CODE</label>
               <input id="roomInput" type="text" inputmode="text" maxlength="6" autocomplete="off" spellcheck="false" placeholder="ABC234" />
-              <button id="joinRoomButton" type="button">加入 <span>→</span></button>
+              <button id="joinRoomButton" type="button">JOIN <span>→</span></button>
             </div>
           </div>
 
           <div class="room-ready" id="roomReady" hidden>
-            <span>分享房间码</span>
+            <span>SHARE THIS ROOM CODE</span>
             <strong id="shareCode">ABC234</strong>
-            <button id="copyRoomButton" type="button">复制邀请链接</button>
-            <p id="waitingText"><i></i> 正在等待另一名玩家…</p>
+            <button id="copyRoomButton" type="button">COPY INVITE LINK</button>
+            <p id="waitingText"><i></i> Waiting for another player…</p>
           </div>
 
           <p class="lobby-status" id="lobbyStatus" aria-live="polite"></p>
-          <a class="local-mode-link" href="index.html">暂时返回人机模式</a>
+          <a class="local-mode-link" href="index.html">Back to solo practice</a>
         </section>
       </div>
 
@@ -110,12 +110,12 @@
         <div class="result-stamp">HIT!</div>
         <p id="resultEyebrow">SERVER CONFIRMED CONTACT</p>
         <h2 id="resultTitle">YOU WIN</h2>
-        <p id="resultText">你的铅笔轨迹截中了对手。</p>
+        <p id="resultText">Your pencil line crossed your rival's center point.</p>
         <div class="result-stats">
-          <div><span>房间</span><b id="resultRoom">——</b></div>
-          <div><span>回合</span><b id="resultRounds">01</b></div>
+          <div><span>ROOM</span><b id="resultRoom">——</b></div>
+          <div><span>ROUNDS</span><b id="resultRounds">01</b></div>
         </div>
-        <button id="playAgainButton" type="button">发起重赛 <span>→</span></button>
+        <button id="playAgainButton" type="button">REQUEST REMATCH <span>→</span></button>
       </div>
 
       <div class="toast" id="toast" role="status" hidden></div>

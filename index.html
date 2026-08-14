@@ -1,10 +1,10 @@
 <!doctype html>
-<html lang="zh-CN">
+<html lang="en">
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
   <meta name="theme-color" content="#123c3d" />
-  <title>铅迹追猎 · Pencil Duel</title>
+  <title>Pencil Duel · Trace Hunter</title>
   <link rel="stylesheet" href="styles.css" />
 </head>
 <body>
@@ -13,52 +13,52 @@
       <div class="brand">
         <span class="brand-mark" aria-hidden="true"><i></i><i></i><i></i></span>
         <div>
-          <p>PENCIL DUEL</p>
-          <h1>铅迹追猎</h1>
+          <p>PENCIL DUEL · SOLO</p>
+          <h1>TRACE HUNTER</h1>
         </div>
       </div>
 
-      <div class="scoreboard" aria-label="对局状态">
+      <div class="scoreboard" aria-label="Match status">
         <div class="side player-side">
           <span class="side-dot"></span>
-          <div><b>PLAYER</b><small>你</small></div>
+          <div><b>PLAYER</b><small>YOU</small></div>
         </div>
         <div class="round">
           <small>ROUND</small>
           <strong id="roundNumber">01</strong>
         </div>
         <div class="side ai-side">
-          <div><b>COMPUTER</b><small>AI</small></div>
+          <div><b>COMPUTER</b><small>TACTICAL AI</small></div>
           <span class="side-dot"></span>
         </div>
       </div>
 
       <div class="header-actions">
-        <a class="icon-button online-link" href="online.html" aria-label="进入互联网联机模式">
+        <a class="icon-button online-link" href="online.html" aria-label="Play an online match">
           <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="8" cy="12" r="3"/><circle cx="16" cy="12" r="3"/><path d="M11 12h2"/></svg>
-          <span>联机</span>
+          <span>ONLINE</span>
         </a>
-        <button class="icon-button" id="resetButton" type="button" aria-label="重新开始">
+        <button class="icon-button" id="resetButton" type="button" aria-label="Restart match">
           <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20 11a8 8 0 1 0-2.34 5.66M20 4v7h-7" /></svg>
-          <span>重开</span>
+          <span>RESET</span>
         </button>
       </div>
     </header>
 
     <section class="board-wrap" id="boardWrap">
-      <canvas id="gameCanvas" aria-label="铅笔轨迹对战游戏区域"></canvas>
+      <canvas id="gameCanvas" aria-label="Pencil Duel game board"></canvas>
 
       <div class="paper-title" aria-hidden="true">
-        <span>MATCH No. 07</span>
-        <span>TRACE THE POINT · NOT THE BASE</span>
+        <span>FIELD NOTE // MATCH 07</span>
+        <span>CHASE THE CENTER · OWN THE LINE</span>
       </div>
 
       <div class="turn-banner" id="turnBanner" aria-live="polite">
         <span class="turn-index">01</span>
-        <div><small>YOUR MOVE</small><strong>轮到你了</strong></div>
+        <div><small>YOUR MOVE</small><strong>Draw your strike</strong></div>
       </div>
 
-      <aside class="telemetry" aria-label="游戏参数">
+      <aside class="telemetry" aria-label="Game physics">
         <div><span>FRICTION</span><b>μ VARIABLE</b></div>
         <div><span>CENTER HIT</span><b>2 px</b></div>
         <div><span>RANGE VAR</span><b>±16%</b></div>
@@ -76,11 +76,11 @@
           <span class="gesture-pencil"></span><span class="gesture-arrow">↗</span>
         </div>
         <div class="instruction">
-          <strong id="instructionTitle">按住鼠标左键，朝出手方向滑动</strong>
-          <span id="instructionText">在 0.3 秒内滑动；提前松开或到时后都会立即出手。</span>
+          <strong id="instructionTitle">Hold left-click and flick toward your target</strong>
+          <span id="instructionText">Release early or auto-launch at 0.3 seconds.</span>
         </div>
         <div class="power-meter">
-          <div class="power-copy"><span>力度</span><b id="powerValue">0%</b></div>
+          <div class="power-copy"><span>IMPULSE</span><b id="powerValue">0%</b></div>
           <div class="power-track"><i id="powerFill"></i></div>
         </div>
       </div>
@@ -89,12 +89,12 @@
         <div class="result-stamp" id="resultStamp">HIT!</div>
         <p id="resultEyebrow">DIRECT TRACE CONTACT</p>
         <h2 id="resultTitle">PLAYER WINS</h2>
-        <p id="resultText">你的铅笔轨迹截中了电脑的当前位置。</p>
+        <p id="resultText">Your pencil line crossed the computer's exact center point.</p>
         <div class="result-stats">
-          <div><span>回合</span><b id="resultRounds">03</b></div>
-          <div><span>你的划痕</span><b id="resultDistance">824 px</b></div>
+          <div><span>ROUNDS</span><b id="resultRounds">03</b></div>
+          <div><span>YOUR TRACE</span><b id="resultDistance">824 px</b></div>
         </div>
-        <button id="playAgainButton" type="button">再来一局 <span>→</span></button>
+        <button id="playAgainButton" type="button">PLAY AGAIN <span>→</span></button>
       </div>
     </section>
   </main>
