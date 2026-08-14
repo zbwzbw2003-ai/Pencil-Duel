@@ -43,7 +43,7 @@
   const HOLD_POWER_WEIGHT = .3;
   const FRICTION = 940;
   const MAX_SPEED = 660;
-  const HIT_RADIUS = 16;
+  const CENTER_HIT_TOLERANCE = 2;
   const EDGE = 42;
   const APP_BASE = location.pathname === '/game1' || location.pathname.startsWith('/game1/') ? '/game1' : '';
 
@@ -608,9 +608,11 @@
     const unit = state[owner], color = owner === 'player' ? COLORS.player : COLORS.ai;
     const target = state.phase !== 'gameOver' && state.active !== owner;
     ctx.save(); ctx.translate(unit.pos.x, unit.pos.y); ctx.strokeStyle = color; ctx.fillStyle = color;
-    ctx.globalAlpha = .12; ctx.beginPath(); ctx.arc(0, 0, HIT_RADIUS + 4 + (target ? Math.sin(state.pulse * 4) * 2 : 0), 0, Math.PI * 2); ctx.fill();
-    ctx.globalAlpha = .72; ctx.lineWidth = 1; ctx.beginPath(); ctx.arc(0, 0, HIT_RADIUS, 0, Math.PI * 2); ctx.stroke();
-    ctx.beginPath(); ctx.arc(0, 0, 2.4, 0, Math.PI * 2); ctx.fill(); ctx.restore();
+    ctx.globalAlpha = target ? .42 + Math.sin(state.pulse * 5) * .12 : .28;
+    ctx.lineWidth = .8; ctx.beginPath();
+    ctx.moveTo(-8, 0); ctx.lineTo(-4, 0); ctx.moveTo(4, 0); ctx.lineTo(8, 0);
+    ctx.moveTo(0, -8); ctx.lineTo(0, -4); ctx.moveTo(0, 4); ctx.lineTo(0, 8); ctx.stroke();
+    ctx.globalAlpha = .9; ctx.beginPath(); ctx.arc(0, 0, CENTER_HIT_TOLERANCE, 0, Math.PI * 2); ctx.fill(); ctx.restore();
   }
 
   function drawPencil(owner) {

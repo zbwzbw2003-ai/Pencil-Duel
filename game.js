@@ -29,7 +29,7 @@
   const HOLD_POWER_WEIGHT = .3;
   const FRICTION = 940;
   const MAX_SPEED = 660;
-  const HIT_RADIUS = 16;
+  const CENTER_HIT_TOLERANCE = 2;
   const EDGE = 42;
   const audio = { context: null, scratch: null, gain: null };
 
@@ -279,7 +279,7 @@
       unit.distance += moved;
       if (moved > 1.2) state.currentTrail.points.push({...unit.pos});
       unit.angle = Math.atan2(unit.vel.y, unit.vel.x);
-      if (segmentDistance(old, unit.pos, target.pos) <= HIT_RADIUS) {
+      if (segmentDistance(old, unit.pos, target.pos) <= CENTER_HIT_TOLERANCE) {
         state.currentTrail.points.push({...unit.pos});
         endGame(owner);
         return;
@@ -388,7 +388,7 @@
       const dTarget = segmentDistance(old, p, target);
       minTarget = Math.min(minTarget, dTarget);
       minPredicted = Math.min(minPredicted, segmentDistance(old, p, predicted));
-      if (dTarget <= HIT_RADIUS) { hit = true; break; }
+      if (dTarget <= CENTER_HIT_TOLERANCE) { hit = true; break; }
       if (hitBoundary) break;
       const speed = Math.max(0, Math.hypot(v.x, v.y) - simulatedFriction * dt);
       const a = Math.atan2(v.y, v.x);
@@ -533,10 +533,14 @@
     const activeTarget = state.phase !== 'gameOver' && ((state.active === 'player' && owner === 'ai') || (state.active === 'ai' && owner === 'player'));
     ctx.save(); ctx.translate(unit.pos.x, unit.pos.y);
     ctx.strokeStyle = color; ctx.fillStyle = color;
-    ctx.globalAlpha = .12; ctx.beginPath(); ctx.arc(0, 0, HIT_RADIUS + 4 + (activeTarget ? Math.sin(state.pulse * 4) * 2 : 0), 0, Math.PI * 2); ctx.fill();
-    ctx.globalAlpha = .72; ctx.lineWidth = 1;
-    ctx.beginPath(); ctx.arc(0, 0, HIT_RADIUS, 0, Math.PI * 2); ctx.stroke();
-    ctx.beginPath(); ctx.arc(0, 0, 2.4, 0, Math.PI * 2); ctx.fill();
+    ctx.globalAlpha = activeTarget ? .42 + Math.sin(state.pulse * 5) * .12 : .28;
+    ctx.lineWidth = .8;
+    ctx.beginPath();
+    ctx.moveTo(-8, 0); ctx.lineTo(-4, 0); ctx.moveTo(4, 0); ctx.lineTo(8, 0);
+    ctx.moveTo(0, -8); ctx.lineTo(0, -4); ctx.moveTo(0, 4); ctx.lineTo(0, 8);
+    ctx.stroke();
+    ctx.globalAlpha = .9;
+    ctx.beginPath(); ctx.arc(0, 0, CENTER_HIT_TOLERANCE, 0, Math.PI * 2); ctx.fill();
     ctx.restore();
   }
 

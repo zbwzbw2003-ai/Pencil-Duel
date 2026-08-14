@@ -5,7 +5,7 @@ const ROOM_TTL = 24 * 60 * 60 * 1000;
 const MAX_DRAG_POWER = 1;
 const FRICTION = 940;
 const MAX_SPEED = 660;
-const HIT_RADIUS = 16;
+const CENTER_HIT_TOLERANCE = 2;
 const EDGE = 42;
 
 export default {
@@ -296,7 +296,7 @@ function simulateShot(game, owner, angle, power, surfaceFactor) {
     if (p.y > game.height - EDGE - 44) { p.y = game.height - EDGE - 44; hitBoundary = true; }
     points.push({...p});
 
-    if (segmentDistance(old, p, target) <= HIT_RADIUS) {
+    if (segmentDistance(old, p, target) <= CENTER_HIT_TOLERANCE) {
       winner = owner;
       break;
     }
