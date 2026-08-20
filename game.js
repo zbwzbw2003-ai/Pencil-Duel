@@ -29,6 +29,13 @@
   const telemetryToggle = document.getElementById('telemetryToggle');
   const aiSubtitle = document.getElementById('aiSubtitle');
   const rankValue = document.getElementById('rankValue');
+  const hudPanels = [
+    document.querySelector('.paper-title'),
+    turnBanner,
+    telemetry,
+    document.querySelector('.legend'),
+    controlDock
+  ].filter(Boolean);
 
   const COLORS = {
     player: '#0e9999', playerDark: '#086e73',
@@ -113,6 +120,7 @@
       Object.values(state.bases).forEach(p => { p.x *= sx; p.y *= sy; });
       state.trails.forEach(t => t.points.forEach(p => { p.x *= sx; p.y *= sy; }));
     }
+    refreshPencilClearance();
   }
 
   function resetGame() {
@@ -182,6 +190,7 @@
       controlDock.classList.add('waiting');
     }
     setPower(0);
+    refreshPencilClearance();
   }
 
   function setPower(value) {
@@ -196,13 +205,46 @@
     return { x: e.clientX - r.left, y: e.clientY - r.top };
   }
 
+  function pencilLength() { return Math.min(58, Math.max(38, W * .105)); }
+
+  // The visual pencil runs from its eraser to its tip. That line is the diameter
+  // of the activation circle, so a press anywhere in the circle starts a flick.
+  function pencilInteractionZone(unit) {
+    const length = pencilLength() + 14;
+    return {
+      x: unit.pos.x - Math.cos(unit.angle) * length / 2,
+      y: unit.pos.y - Math.sin(unit.angle) * length / 2,
+      radius: length / 2
+    };
+  }
+
+  function canStartFlickAt(point, unit) {
+    const zone = pencilInteractionZone(unit);
+    return distance(point, zone) <= zone.radius;
+  }
+
+  function refreshPencilClearance() {
+    const canAim = state?.phase === 'playerAim' && !state.aiming;
+    const zone = canAim ? pencilInteractionZone(state.player) : null;
+    const boardRect = canvas.getBoundingClientRect();
+    hudPanels.forEach(panel => {
+      const rect = panel.getBoundingClientRect();
+      const nearestX = clamp(zone ? boardRect.left + zone.x : 0, rect.left, rect.right);
+      const nearestY = clamp(zone ? boardRect.top + zone.y : 0, rect.top, rect.bottom);
+      const overlaps = Boolean(zone) && Math.hypot(boardRect.left + zone.x - nearestX, boardRect.top + zone.y - nearestY) <= zone.radius + 8;
+      panel.classList.toggle('pencil-clearance', overlaps);
+    });
+    board.classList.toggle('pencil-ready', Boolean(zone));
+  }
+
   function pointerDown(e) {
     if (state.phase !== 'playerAim') return;
     if (state.aiming) return;
     if (e.pointerType === 'mouse' && e.button !== 0) return;
     const p = pointFromEvent(e);
-    if (distance(p, state.player.pos) > 60) return;
+    if (!canStartFlickAt(p, state.player)) return;
     e.preventDefault();
+    e.stopPropagation();
     initAudio();
     state.aiming = true;
     state.pointerId = e.pointerId;
@@ -213,7 +255,7 @@
     state.aimFrozen = false;
     state.aimPoint = {...state.player.pos};
     state.aimPower = 0;
-    canvas.setPointerCapture(e.pointerId);
+    board.setPointerCapture(e.pointerId);
     canvas.className = 'is-aiming';
     instructionTitle.textContent = 'The pencil tip follows your exact gesture centerline';
     instructionText.textContent = state.tutorial
@@ -267,8 +309,8 @@
     if (!state.aiming) return;
     const power = state.aimPower;
     state.aiming = false;
-    if (state.pointerId !== null && canvas.hasPointerCapture(state.pointerId)) {
-      canvas.releasePointerCapture(state.pointerId);
+    if (state.pointerId !== null && board.hasPointerCapture(state.pointerId)) {
+      board.releasePointerCapture(state.pointerId);
     }
     canvas.className = '';
     const dx = state.aimVector.x;
@@ -325,6 +367,7 @@
     state.aimDragDistance = 0;
     state.aimFrozen = false;
     setPower(0);
+    refreshPencilClearance();
     haptic(owner === 'player' ? 8 : 4);
     startScratch();
   }
@@ -579,6 +622,7 @@
     drawCurrentMarker('ai');
     drawPencil('player');
     drawPencil('ai');
+    drawPencilInteractionZone();
     drawParticles();
     ctx.restore();
   }
@@ -696,7 +740,7 @@
     const dark = owner === 'player' ? COLORS.playerDark : COLORS.aiDark;
     const highlight = owner === 'player' ? '#63e3d7' : '#ffb27e';
     const eraser = owner === 'player' ? '#3bc8bd' : '#f28b58';
-    const length = Math.min(58, Math.max(38, W * .105));
+    const length = pencilLength();
     ctx.save();
     ctx.translate(unit.pos.x, unit.pos.y);
     ctx.rotate(unit.angle);
@@ -737,6 +781,21 @@
     [-length - 5, -length - 2].forEach(x => { ctx.beginPath(); ctx.moveTo(x, -5.5); ctx.lineTo(x, 5.5); ctx.stroke(); });
     ctx.fillStyle = eraser; roundRect(ctx, -length - 14, -5.7, 7, 11.4, 2.5); ctx.fill();
     ctx.fillStyle = 'rgba(255,255,255,.28)'; roundRect(ctx, -length - 13, -4.5, 2, 8, 1); ctx.fill();
+    ctx.restore();
+  }
+
+  function drawPencilInteractionZone() {
+    if (state.phase !== 'playerAim' || state.aiming) return;
+    const zone = pencilInteractionZone(state.player);
+    ctx.save();
+    ctx.strokeStyle = COLORS.player;
+    ctx.globalAlpha = .3 + Math.sin(state.pulse * 3) * .08;
+    ctx.lineWidth = 1;
+    ctx.setLineDash([2, 5]);
+    ctx.beginPath();
+    ctx.arc(zone.x, zone.y, zone.radius, 0, Math.PI * 2);
+    ctx.stroke();
+    ctx.setLineDash([]);
     ctx.restore();
   }
 
@@ -852,10 +911,10 @@
     return Math.hypot(p.x - (a.x + t * dx), p.y - (a.y + t * dy));
   }
 
-  canvas.addEventListener('pointerdown', pointerDown);
-  canvas.addEventListener('pointermove', pointerMove);
-  canvas.addEventListener('pointerup', pointerUp);
-  canvas.addEventListener('pointercancel', pointerCancel);
+  board.addEventListener('pointerdown', pointerDown);
+  board.addEventListener('pointermove', pointerMove);
+  board.addEventListener('pointerup', pointerUp);
+  board.addEventListener('pointercancel', pointerCancel);
   document.getElementById('resetButton').addEventListener('click', resetGame);
   document.getElementById('playAgainButton').addEventListener('click', resetGame);
   document.getElementById('startTutorialButton').addEventListener('click', () => {

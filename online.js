@@ -34,6 +34,13 @@
   const resetButton = document.getElementById('resetButton');
   const toast = document.getElementById('toast');
   const paperName = document.getElementById('paperName');
+  const hudPanels = [
+    document.querySelector('.paper-title'),
+    turnBanner,
+    document.querySelector('.telemetry'),
+    document.querySelector('.legend'),
+    controlDock
+  ].filter(Boolean);
 
   const COLORS = {
     player: '#0e9999', playerDark: '#086e73',
@@ -97,6 +104,7 @@
       if (state.playback) state.playback.path.forEach(p => { p.x *= sx; p.y *= sy; });
     }
     if (!net.connected && state.trails.length === 0) setDefaultPositions();
+    refreshPencilClearance();
   }
 
   function setDefaultPositions() {
@@ -167,6 +175,7 @@
     controlDock.classList.toggle('waiting', !mine);
     canvas.className = mine ? 'can-aim' : '';
     setPower(0);
+    refreshPencilClearance();
   }
 
   function updatePresence(presence) {
@@ -495,12 +504,13 @@
     if (state.aiming) return;
     if (e.pointerType === 'mouse' && e.button !== 0) return;
     const p = pointFromEvent(e), unit = state[net.side];
-    if (distance(p, unit.pos) > 60) return;
+    if (!canStartFlickAt(p, unit)) return;
     e.preventDefault();
+    e.stopPropagation();
     state.aiming = true; state.pointerId = e.pointerId;
     state.aimStart = p; state.aimVector = {x: 0, y: 0}; state.aimStartedAt = performance.now(); state.aimDragDistance = 0; state.aimFrozen = false;
     state.aimPoint = {...unit.pos}; state.aimPower = 0;
-    canvas.setPointerCapture(e.pointerId); canvas.className = 'is-aiming';
+    board.setPointerCapture(e.pointerId); canvas.className = 'is-aiming';
     instructionTitle.textContent = 'The pencil tip follows your exact gesture centerline';
     instructionText.textContent = 'Adjust for 0.5 seconds; the pencil launches when time expires.';
   }
@@ -549,8 +559,8 @@
     if (!state.aiming) return;
     const power = state.aimPower;
     state.aiming = false;
-    if (state.pointerId !== null && canvas.hasPointerCapture(state.pointerId)) {
-      canvas.releasePointerCapture(state.pointerId);
+    if (state.pointerId !== null && board.hasPointerCapture(state.pointerId)) {
+      board.releasePointerCapture(state.pointerId);
     }
     const unit = state[net.side];
     const dx = state.aimVector.x, dy = state.aimVector.y;
@@ -583,6 +593,36 @@
     return {x: e.clientX - r.left, y: e.clientY - r.top};
   }
 
+  function pencilLength() { return Math.min(58, Math.max(38, W * .105)); }
+
+  function pencilInteractionZone(unit) {
+    const length = pencilLength() + 14;
+    return {
+      x: unit.pos.x - Math.cos(unit.angle) * length / 2,
+      y: unit.pos.y - Math.sin(unit.angle) * length / 2,
+      radius: length / 2
+    };
+  }
+
+  function canStartFlickAt(point, unit) {
+    const zone = pencilInteractionZone(unit);
+    return distance(point, zone) <= zone.radius;
+  }
+
+  function refreshPencilClearance() {
+    const canAim = state.phase === 'playerAim' && state.active === net.side && !state.aiming;
+    const zone = canAim ? pencilInteractionZone(state[net.side]) : null;
+    const boardRect = canvas.getBoundingClientRect();
+    hudPanels.forEach(panel => {
+      const rect = panel.getBoundingClientRect();
+      const nearestX = clamp(zone ? boardRect.left + zone.x : 0, rect.left, rect.right);
+      const nearestY = clamp(zone ? boardRect.top + zone.y : 0, rect.top, rect.bottom);
+      const overlaps = Boolean(zone) && Math.hypot(boardRect.left + zone.x - nearestX, boardRect.top + zone.y - nearestY) <= zone.radius + 8;
+      panel.classList.toggle('pencil-clearance', overlaps);
+    });
+    board.classList.toggle('pencil-ready', Boolean(zone));
+  }
+
   function setPower(value) {
     const percent = Math.round(value * 100);
     powerValue.textContent = `${percent}%`;
@@ -610,7 +650,7 @@
     state.trails.forEach(drawTrail);
     if (state.aiming && state.aimPoint) drawAimGuide();
     drawCurrentMarker('player'); drawCurrentMarker('ai');
-    drawPencil('player'); drawPencil('ai'); drawParticles();
+    drawPencil('player'); drawPencil('ai'); drawPencilInteractionZone(); drawParticles();
   }
 
   function drawBoundary() {
@@ -670,7 +710,7 @@
   function drawPencil(owner) {
     const unit = state[owner], color = owner === 'player' ? COLORS.player : COLORS.ai, dark = owner === 'player' ? COLORS.playerDark : COLORS.aiDark;
     const highlight = owner === 'player' ? '#63e3d7' : '#ffb27e', eraser = owner === 'player' ? '#3bc8bd' : '#f28b58';
-    const moving = state.phase === 'networkMoving' && state.active === owner, length = Math.min(58, Math.max(38, W * .105));
+    const moving = state.phase === 'networkMoving' && state.active === owner, length = pencilLength();
     ctx.save(); ctx.translate(unit.pos.x, unit.pos.y); ctx.rotate(unit.angle);
     if (moving) {
       const blur = ctx.createLinearGradient(-length - 56, 0, -length, 0); blur.addColorStop(0, 'rgba(255,255,255,0)'); blur.addColorStop(1, owner === 'player' ? 'rgba(15,156,156,.22)' : 'rgba(230,119,55,.22)');
@@ -690,6 +730,22 @@
     ctx.fillStyle = metal; ctx.fillRect(-length - 7, -6, 8, 12); ctx.strokeStyle = 'rgba(57,69,66,.28)'; ctx.lineWidth = .6;
     [-length - 5, -length - 2].forEach(x => { ctx.beginPath(); ctx.moveTo(x, -5.5); ctx.lineTo(x, 5.5); ctx.stroke(); });
     ctx.fillStyle = eraser; roundedRect(ctx, -length - 14, -5.7, 7, 11.4, 2.5); ctx.fill(); ctx.fillStyle = 'rgba(255,255,255,.28)'; roundedRect(ctx, -length - 13, -4.5, 2, 8, 1); ctx.fill();
+    ctx.restore();
+  }
+
+  function drawPencilInteractionZone() {
+    if (state.phase !== 'playerAim' || state.active !== net.side || state.aiming) return;
+    const zone = pencilInteractionZone(state[net.side]);
+    const color = net.side === 'player' ? COLORS.player : COLORS.ai;
+    ctx.save();
+    ctx.strokeStyle = color;
+    ctx.globalAlpha = .3 + Math.sin(state.pulse * 3) * .08;
+    ctx.lineWidth = 1;
+    ctx.setLineDash([2, 5]);
+    ctx.beginPath();
+    ctx.arc(zone.x, zone.y, zone.radius, 0, Math.PI * 2);
+    ctx.stroke();
+    ctx.setLineDash([]);
     ctx.restore();
   }
 
@@ -770,10 +826,10 @@
   resetButton.addEventListener('click', requestRestart);
   roomInput.addEventListener('input', () => { roomInput.value = normalizeCode(roomInput.value); });
   roomInput.addEventListener('keydown', e => { if (e.key === 'Enter') joinRoom(); });
-  canvas.addEventListener('pointerdown', pointerDown);
-  canvas.addEventListener('pointermove', pointerMove);
-  canvas.addEventListener('pointerup', pointerUp);
-  canvas.addEventListener('pointercancel', pointerCancel);
+  board.addEventListener('pointerdown', pointerDown);
+  board.addEventListener('pointermove', pointerMove);
+  board.addEventListener('pointerup', pointerUp);
+  board.addEventListener('pointercancel', pointerCancel);
   addEventListener('resize', resize);
   document.addEventListener('visibilitychange', () => { lastTime = performance.now(); });
 

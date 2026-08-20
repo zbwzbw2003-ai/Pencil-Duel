@@ -635,6 +635,13 @@ body {
 }
 .tutorial-card button:hover, .result-actions button:hover { transform: translateY(-2px); }
 
+/* A panel yields when the active pencil reaches it, so the pencil stays visible
+   and the board can receive the first press through that panel area. */
+.board-wrap .pencil-clearance {
+  opacity: 0 !important;
+  pointer-events: none !important;
+}
+
 .result-stats {
   display: grid; grid-template-columns: repeat(4, minmax(94px, 1fr)); width: min(560px, calc(100vw - 36px));
 }
