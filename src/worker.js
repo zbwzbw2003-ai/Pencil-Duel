@@ -12,16 +12,14 @@ const SURFACES = [
   {name: 'GRAIN', friction: 'MEDIUM', factor: 1, range: 'ANGLE GRAIN'},
   {name: 'ROUGH', friction: 'HIGH', factor: 1.10, range: 'ANGLE GRAIN'}
 ];
+const APP_BASES = ['/game1', '/apps/games/pencil'];
 
 export default {
   async fetch(request, env) {
     const url = new URL(request.url);
-    if (url.pathname === '/game1') {
-      return Response.redirect(new URL('/game1/', url), 308);
-    }
-    const routePath = url.pathname.startsWith('/game1/')
-      ? url.pathname.slice('/game1'.length)
-      : url.pathname;
+    const appBase = APP_BASES.find(base => url.pathname === base || url.pathname.startsWith(`${base}/`));
+    if (appBase && url.pathname === appBase) return Response.redirect(new URL(`${appBase}/`, url), 308);
+    const routePath = appBase ? url.pathname.slice(appBase.length) : url.pathname;
 
     if (routePath === '/api/health') {
       return json({ok: true, service: 'pencil-duel', transport: 'durable-object-websocket', rooms: 'ready'});

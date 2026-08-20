@@ -48,7 +48,9 @@
   const MAX_SPEED = 660;
   const CENTER_HIT_TOLERANCE = 2;
   const EDGE = 42;
-  const APP_BASE = location.pathname === '/game1' || location.pathname.startsWith('/game1/') ? '/game1' : '';
+  const APP_BASE = ['/game1', '/apps/games/pencil'].find(
+    base => location.pathname === base || location.pathname.startsWith(`${base}/`)
+  ) || '';
   const isTouchDevice = matchMedia('(pointer: coarse)').matches || navigator.maxTouchPoints > 0;
 
   let W = 0, H = 0, dpr = 1, lastTime = performance.now();
