@@ -6,7 +6,7 @@
   "assets": {
     "directory": "./public",
     "binding": "ASSETS",
-    "run_worker_first": ["/api/*", "/game1/api/*", "/apps/games/pencil/api/*"]
+    "run_worker_first": true
   },
   "routes": [
     {
