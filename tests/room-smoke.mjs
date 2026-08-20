@@ -62,6 +62,7 @@ const host = inbox(`${wsOrigin}/api/rooms/${created.roomCode}/socket?token=${enc
 await host.opened;
 const hostWelcome = await host.next('welcome');
 assert.equal(hostWelcome.side, 'player');
+assert.match(hostWelcome.state.surface.name, /^(SMOOTH|GRAIN|ROUGH)$/);
 
 const guest = inbox(`${wsOrigin}/api/rooms/${created.roomCode}/socket?token=${encodeURIComponent(joined.token)}`);
 await guest.opened;
@@ -75,6 +76,9 @@ const [hostShot, guestShot] = await Promise.all([host.next('shot'), guest.next('
 assert.deepEqual(hostShot.shot.points, guestShot.shot.points);
 assert.equal(hostShot.shot.owner, 'player');
 assert.equal(hostShot.state.turn, 'ai');
+assert.ok(Number.isFinite(hostShot.shot.closest));
+assert.ok(hostShot.shot.closest >= 0);
+assert.equal(hostShot.state.surface.name, hostWelcome.state.surface.name, 'paper condition must remain fixed for the room');
 
 const points = hostShot.shot.points;
 assert.ok(points.length > 2);

@@ -29,8 +29,11 @@
   const resultText = document.getElementById('resultText');
   const resultRoom = document.getElementById('resultRoom');
   const resultRounds = document.getElementById('resultRounds');
+  const resultClosest = document.getElementById('resultClosest');
+  const resultPaper = document.getElementById('resultPaper');
   const resetButton = document.getElementById('resetButton');
   const toast = document.getElementById('toast');
+  const paperName = document.getElementById('paperName');
 
   const COLORS = {
     player: '#0e9999', playerDark: '#086e73',
@@ -38,7 +41,7 @@
   };
   const MAX_DRAG = 92;
   const MIN_DRAG = 10;
-  const AIM_WINDOW_MS = 300;
+  const AIM_WINDOW_MS = 500;
   const DRAG_POWER_WEIGHT = .7;
   const HOLD_POWER_WEIGHT = .3;
   const FRICTION = 940;
@@ -46,9 +49,11 @@
   const CENTER_HIT_TOLERANCE = 2;
   const EDGE = 42;
   const APP_BASE = location.pathname === '/game1' || location.pathname.startsWith('/game1/') ? '/game1' : '';
+  const isTouchDevice = matchMedia('(pointer: coarse)').matches || navigator.maxTouchPoints > 0;
 
   let W = 0, H = 0, dpr = 1, lastTime = performance.now();
   let toastTimer = null;
+  let networkAvailable = null;
   const net = {
     socket: null,
     roomCode: '',
@@ -60,7 +65,8 @@
     intentionallyClosed: false,
     retries: 0,
     reconnectTimer: null,
-    presence: {player: false, ai: false}
+    presence: {player: false, ai: false},
+    surface: {name: '—', friction: '—', factor: 1, range: '—'}
   };
 
   const state = {
@@ -70,7 +76,7 @@
     bases: {player: {x: 0, y: 0}, ai: {x: 0, y: 0}},
     trails: [], aiming: false, aimPoint: null, aimPower: 0,
     aimStart: null, aimVector: {x: 0, y: 0}, aimStartedAt: 0, aimDragDistance: 0, aimFrozen: false,
-    pointerId: null, playback: null, pulse: 0, particles: [],
+    pointerId: null, playback: null, pulse: 0, particles: [], lastShot: null, closestBySide: {player: null, ai: null},
     pausedForDisconnect: false
   };
 
@@ -113,6 +119,8 @@
     state.active = snapshot.turn;
     state.status = snapshot.status;
     state.winner = snapshot.winner;
+    state.surface = snapshot.surface || state.surface;
+    paperName.textContent = state.surface.name || '—';
     state.player.pos = serverToLocal(snapshot.positions.player);
     state.ai.pos = serverToLocal(snapshot.positions.ai);
     state.bases.player = serverToLocal(snapshot.bases.player);
@@ -152,8 +160,8 @@
     turnBanner.classList.toggle('ai-turn', orangeTurn);
     turnLabel.textContent = mine ? 'YOUR MOVE' : 'RIVAL MOVE';
     turnText.textContent = mine ? 'Draw your strike' : 'Waiting for rival input';
-    instructionTitle.textContent = mine ? 'Hold left-click and flick toward your target' : 'Your rival is choosing direction and impulse';
-    instructionText.textContent = mine ? 'Release early or auto-launch at 0.3 seconds.' : 'Both players receive the same server-confirmed trace.';
+    instructionTitle.textContent = mine ? `${deviceVerb()} through the rival's center` : 'Your rival is choosing direction and impulse';
+    instructionText.textContent = mine ? 'Release early or auto-launch at 0.5 seconds.' : 'Both players receive the same server-confirmed trace.';
     controlDock.classList.toggle('waiting', !mine);
     canvas.className = mine ? 'can-aim' : '';
     setPower(0);
@@ -201,6 +209,32 @@
       connectSocket();
     } catch (error) {
       setLobbyBusy(false, `Could not create room: ${error.message}`);
+    }
+  }
+
+  async function checkNetwork() {
+    if (location.protocol === 'file:') {
+      networkAvailable = false;
+      networkState.textContent = 'LOCAL ONLY';
+      lobbyStatus.textContent = 'Online play needs Cloudflare deployment or a local npm run dev server.';
+      return;
+    }
+    networkState.textContent = 'CHECKING';
+    try {
+      const response = await fetch(`${APP_BASE}/api/health`, {cache: 'no-store'});
+      const data = await response.json();
+      if (!response.ok || !data.ok) throw new Error('Match service did not respond');
+      networkAvailable = true;
+      networkState.textContent = 'READY';
+      lobbyStatus.textContent = 'Match service ready — create a room or join a friend.';
+      instructionTitle.textContent = 'Create a room or challenge a friend';
+      instructionText.textContent = 'The server confirms every trace, paper condition, and center hit.';
+    } catch {
+      networkAvailable = false;
+      networkState.textContent = 'OFFLINE';
+      lobbyStatus.textContent = 'SERVER OFFLINE — Solo mode is still available.';
+      instructionTitle.textContent = 'Online Arena is temporarily unavailable';
+      instructionText.textContent = 'Use Solo practice while the match service reconnects.';
     }
   }
 
@@ -316,6 +350,8 @@
     const path = shot.points.map(serverToLocal);
     const owner = shot.owner;
     const trail = {owner, seed: shot.seed, points: [path[0]]};
+    state.lastShot = {owner, closest: shot.closest, power: shot.power};
+    state.closestBySide[owner] = shot.closest;
     state.trails.push(trail);
     state.active = owner;
     state.phase = 'networkMoving';
@@ -357,10 +393,12 @@
       if (pending.status === 'finished') {
         state.phase = 'gameOver';
         spawnHitParticles(state[pending.winner].pos, pending.winner);
+        haptic(pending.winner === net.side ? [16, 28, 20] : [32, 28, 32]);
         setTimeout(() => showResult(pending.winner), 360);
       } else {
         state.phase = state.active === net.side ? 'playerAim' : 'onlineWaiting';
         updateTurnUI();
+        if (pb.trail.owner === net.side) showToast(shotFeedback(pb.trail.owner, state.lastShot.closest));
       }
     }
   }
@@ -397,6 +435,8 @@
     lobbyStatus.textContent = '';
     roomNumber.textContent = net.roomCode;
     networkState.textContent = 'WAITING';
+    instructionTitle.textContent = 'Room ready — share the invite code';
+    instructionText.textContent = `Paper: ${state.surface.name || 'server selected'}. The match begins when your rival connects.`;
   }
 
   function setLobbyBusy(busy, message = '') {
@@ -406,8 +446,12 @@
   }
 
   function canUseNetwork() {
-    if (location.protocol === 'file:') {
-      lobbyStatus.textContent = 'Online play needs Cloudflare deployment or a local npm run dev server.';
+    if (networkAvailable === false) {
+      lobbyStatus.textContent = 'SERVER OFFLINE — Solo mode is still available.';
+      return false;
+    }
+    if (networkAvailable === null) {
+      lobbyStatus.textContent = 'Checking the match service. Please try again in a moment.';
       return false;
     }
     return true;
@@ -428,9 +472,12 @@
     resultOverlay.hidden = false;
     resultOverlay.classList.toggle('lost', !won);
     resultTitle.textContent = won ? 'YOU WIN' : 'OPPONENT WINS';
-    resultText.textContent = won ? "Server confirmed: your line crossed the rival's center first." : 'Server confirmed: the rival crossed your center first.';
+    const closest = Number.isFinite(state.closestBySide[net.side]) ? state.closestBySide[net.side] : null;
+    resultText.textContent = won ? "Server confirmed: your line crossed the rival's center first." : (closest === null ? 'Server confirmed: the rival crossed your center first.' : `Server confirmed the rival's hit. Your latest trace missed by ${closest.toFixed(1)} px.`);
     resultRoom.textContent = net.roomCode;
     resultRounds.textContent = String(state.round).padStart(2, '0');
+    resultClosest.textContent = closest === null ? '—' : `${closest.toFixed(1)} px`;
+    resultPaper.textContent = state.surface.name || '—';
     resetButton.disabled = false;
   }
 
@@ -453,7 +500,7 @@
     state.aimPoint = {...unit.pos}; state.aimPower = 0;
     canvas.setPointerCapture(e.pointerId); canvas.className = 'is-aiming';
     instructionTitle.textContent = 'The pencil tip follows your exact gesture centerline';
-    instructionText.textContent = 'Adjust for 0.3 seconds; the pencil launches when time expires.';
+    instructionText.textContent = 'Adjust for 0.5 seconds; the pencil launches when time expires.';
   }
 
   function pointerMove(e) {
@@ -655,16 +702,13 @@
 
     const serverStart = localToServer(start), serverDx = dx / W * net.serverW, serverDy = dy / H * net.serverH;
     const angle = Math.atan2(serverDy, serverDx), power = state.aimPower;
-    const centralFriction = paperFrictionForAngle(angle, 1);
+    const centralFriction = paperFrictionForAngle(angle, net.surface.factor || 1);
     const centerPath = previewServerPath(serverStart, angle, power, centralFriction).map(serverToLocal);
-    const shortPath = previewServerPath(serverStart, angle, power, centralFriction * 1.16).map(serverToLocal);
-    const longPath = previewServerPath(serverStart, angle, power, centralFriction * .84).map(serverToLocal);
     ctx.save(); ctx.strokeStyle = net.side === 'player' ? COLORS.playerDark : COLORS.aiDark; ctx.fillStyle = ctx.strokeStyle; ctx.globalAlpha = .38; ctx.lineWidth = 1; ctx.setLineDash([3, 7]);
     pathPoints(centerPath); ctx.stroke(); ctx.setLineDash([]);
-    const stop = centerPath.at(-1), shortStop = shortPath.at(-1), longStop = longPath.at(-1);
-    ctx.globalAlpha = .18; ctx.lineWidth = 5; ctx.beginPath(); ctx.moveTo(shortStop.x, shortStop.y); ctx.lineTo(longStop.x, longStop.y); ctx.stroke();
+    const stop = centerPath.at(-1);
     ctx.globalAlpha = .58; ctx.lineWidth = 1; ctx.beginPath(); ctx.arc(stop.x, stop.y, 5, 0, Math.PI * 2); ctx.stroke();
-    [shortStop, longStop].forEach(p => { ctx.beginPath(); ctx.arc(p.x, p.y, 2.5, 0, Math.PI * 2); ctx.fill(); }); ctx.restore();
+    ctx.beginPath(); ctx.arc(stop.x, stop.y, 2.5, 0, Math.PI * 2); ctx.fill(); ctx.restore();
   }
 
   function previewServerPath(start, angle, power, friction) {
@@ -702,6 +746,14 @@
   function pathPoints(points) {
     ctx.beginPath(); points.forEach((p, i) => i ? ctx.lineTo(p.x, p.y) : ctx.moveTo(p.x, p.y));
   }
+  function shotFeedback(owner, closest) {
+    if (!Number.isFinite(closest)) return 'TRACE COMPLETE';
+    if (closest <= 8) return `GREAT — only ${closest.toFixed(1)} px from center`;
+    if (closest <= 20) return `CLOSE — only ${closest.toFixed(1)} px from center`;
+    return `MISS BY ${closest.toFixed(1)} px`;
+  }
+  function deviceVerb() { return isTouchDevice ? 'Touch, drag and flick' : 'Hold and flick'; }
+  function haptic(pattern) { if (isTouchDevice && navigator.vibrate) navigator.vibrate(pattern); }
   function pathAngle(points) { const a = points.at(-2), b = points.at(-1); return Math.atan2(b.y - a.y, b.x - a.x); }
   function roundedRect(c, x, y, w, h, r) { c.beginPath(); c.roundRect ? c.roundRect(x, y, w, h, r) : c.rect(x, y, w, h); }
   function paperFrictionForAngle(angle, surface = 1) { return FRICTION * (1 + Math.sin(angle * 2 + .65) * .09) * surface; }
@@ -726,5 +778,6 @@
   resize();
   const requestedRoom = normalizeCode(new URLSearchParams(location.search).get('room') || '');
   if (requestedRoom) roomInput.value = requestedRoom;
+  checkNetwork();
   requestAnimationFrame(frame);
 })();

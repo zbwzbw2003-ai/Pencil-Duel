@@ -7,6 +7,11 @@ const FRICTION = 940;
 const MAX_SPEED = 660;
 const CENTER_HIT_TOLERANCE = 2;
 const EDGE = 42;
+const SURFACES = [
+  {name: 'SMOOTH', friction: 'LOW', factor: .92, range: 'STABLE'},
+  {name: 'GRAIN', friction: 'MEDIUM', factor: 1, range: 'ANGLE GRAIN'},
+  {name: 'ROUGH', friction: 'HIGH', factor: 1.10, range: 'ANGLE GRAIN'}
+];
 
 export default {
   async fetch(request, env) {
@@ -19,7 +24,7 @@ export default {
       : url.pathname;
 
     if (routePath === '/api/health') {
-      return json({ok: true, service: 'pencil-duel', transport: 'durable-object-websocket'});
+      return json({ok: true, service: 'pencil-duel', transport: 'durable-object-websocket', rooms: 'ready'});
     }
 
     if (routePath === '/api/rooms' && request.method === 'POST') {
@@ -152,8 +157,7 @@ export class GameRoom extends DurableObject {
         return this.sendError(ws, '方向或力度无效。');
       }
 
-      const surfaceFactor = .84 + secureRandom() * .32;
-      const shot = simulateShot(this.game, attachment.side, angle, power, surfaceFactor);
+      const shot = simulateShot(this.game, attachment.side, angle, power);
       const moving = this.game.positions[attachment.side];
       moving.x = shot.end.x;
       moving.y = shot.end.y;
@@ -254,7 +258,8 @@ function makeGame(width, height, hostToken, guestToken) {
       player: {x: width * .11, y: height * .68},
       ai: {x: width * .89, y: height * .32}
     },
-    trails: []
+    trails: [],
+    surface: SURFACES[Math.floor(secureRandom() * SURFACES.length)]
   };
 }
 
@@ -270,20 +275,23 @@ function publicState(game) {
     readyAt: game.readyAt,
     positions: game.positions,
     bases: game.bases,
-    trails: game.trails
+    trails: game.trails,
+    surface: game.surface || SURFACES[1]
   };
 }
 
-function simulateShot(game, owner, angle, power, surfaceFactor) {
+function simulateShot(game, owner, angle, power) {
   const start = game.positions[owner];
   const target = game.positions[owner === 'player' ? 'ai' : 'player'];
   let p = {...start};
   let speed = 180 + power * (MAX_SPEED - 180);
-  const friction = paperFrictionForAngle(angle, surfaceFactor);
+  const surface = game.surface || SURFACES[1];
+  const friction = paperFrictionForAngle(angle, surface.factor);
   const velocity = {x: Math.cos(angle), y: Math.sin(angle)};
   const points = [{...p}];
   const dt = 1 / 60;
   let winner = null;
+  let closest = Infinity;
 
   for (let i = 0; i < 240 && speed >= 18; i++) {
     const old = {...p};
@@ -296,7 +304,9 @@ function simulateShot(game, owner, angle, power, surfaceFactor) {
     if (p.y > game.height - EDGE - 44) { p.y = game.height - EDGE - 44; hitBoundary = true; }
     points.push({...p});
 
-    if (segmentDistance(old, p, target) <= CENTER_HIT_TOLERANCE) {
+    const centerDistance = segmentDistance(old, p, target);
+    closest = Math.min(closest, centerDistance);
+    if (centerDistance <= CENTER_HIT_TOLERANCE) {
       winner = owner;
       break;
     }
@@ -306,9 +316,11 @@ function simulateShot(game, owner, angle, power, surfaceFactor) {
 
   return {
     owner,
+    power,
     points,
     end: p,
     winner,
+    closest,
     duration: Math.max(.18, (points.length - 1) * dt),
     seed: secureRandom() * 1000
   };
