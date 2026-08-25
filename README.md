@@ -69,6 +69,17 @@ npm run test:smoke
 
 配置采用 `wrangler.jsonc` 的 declarative Durable Object `exports`，无需单独创建数据库或 WebSocket 服务。
 
+## GitHub Actions CI/CD
+
+`.github/workflows/ci-cd.yml` 会在 Pull Request 中运行 `npm test` 和 `npm run check`；只有变更合并到 `main` 后，才会自动部署到 Cloudflare。也可以从 `main` 手动触发部署。
+
+在 GitHub 仓库的 **Settings → Secrets and variables → Actions** 中设置以下两个 Repository secrets：
+
+- `CLOUDFLARE_API_TOKEN`：只授予目标账户 Workers 部署权限的 Cloudflare API Token。
+- `CLOUDFLARE_ACCOUNT_ID`：Cloudflare 账户 ID。
+
+API Token 不要写入仓库文件或提交记录。
+
 ## 项目结构
 
 ```text
