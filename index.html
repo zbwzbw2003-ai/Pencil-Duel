@@ -28,7 +28,7 @@
           <strong id="roundNumber">01</strong>
         </div>
         <div class="side ai-side">
-          <div><b>COMPUTER</b><small>TACTICAL AI</small></div>
+          <div><b>COMPUTER</b><small id="aiSubtitle">TACTICAL AI</small></div>
           <span class="side-dot"></span>
         </div>
       </div>
@@ -50,7 +50,7 @@
 
       <div class="paper-title" aria-hidden="true">
         <span>FIELD NOTE // MATCH 07</span>
-        <span>CHASE THE CENTER · OWN THE LINE</span>
+        <span>TRACE THROUGH THE RED CENTER</span>
       </div>
 
       <div class="turn-banner" id="turnBanner" aria-live="polite">
@@ -58,12 +58,15 @@
         <div><small>YOUR MOVE</small><strong>Draw your strike</strong></div>
       </div>
 
-      <aside class="telemetry" aria-label="Game physics">
-        <div><span>FRICTION</span><b>μ VARIABLE</b></div>
-        <div><span>CENTER HIT</span><b>2 px</b></div>
-        <div><span>RANGE VAR</span><b>±16%</b></div>
-        <div><span>EDGE</span><b>STOP</b></div>
-        <div><span>AI PROFILE</span><b id="aiMode">HUNTER</b></div>
+      <aside class="telemetry" aria-label="Game information">
+        <div><span>PAPER</span><b id="paperName">GRAIN</b></div>
+        <div><span>TARGET</span><b>2 px CENTER</b></div>
+        <div><span>AI</span><b id="aiMode">HUNTER</b></div>
+        <div><span>RANK</span><b id="rankValue">ROOKIE</b></div>
+        <button class="telemetry-toggle" id="telemetryToggle" type="button" aria-expanded="false">DETAILS +</button>
+        <div class="advanced-telemetry"><span>FRICTION</span><b id="frictionValue">MEDIUM</b></div>
+        <div class="advanced-telemetry"><span>AIM LIMIT</span><b id="aimLimitValue">0.8 SEC</b></div>
+        <div class="advanced-telemetry"><span>RANGE</span><b id="rangeValue">STABLE</b></div>
       </aside>
 
       <div class="legend" aria-hidden="true">
@@ -76,14 +79,34 @@
           <span class="gesture-pencil"></span><span class="gesture-arrow">↗</span>
         </div>
         <div class="instruction">
-          <strong id="instructionTitle">Hold left-click and flick toward your target</strong>
-          <span id="instructionText">Release early or auto-launch at 0.3 seconds.</span>
+          <strong id="instructionTitle">Flick your trace through the red center</strong>
+          <span id="instructionText">Direction follows your gesture. Strength comes from drag distance and hold time.</span>
         </div>
         <div class="power-meter">
           <div class="power-copy"><span>IMPULSE</span><b id="powerValue">0%</b></div>
           <div class="power-track"><i id="powerFill"></i></div>
         </div>
+        <div class="mode-select" aria-label="Difficulty">
+          <span>MODE</span>
+          <button data-mode="easy" type="button">EASY</button>
+          <button data-mode="normal" type="button">NORMAL</button>
+          <button data-mode="expert" type="button">EXPERT</button>
+        </div>
       </div>
+
+      <section class="tutorial-overlay" id="tutorialOverlay" aria-labelledby="tutorialTitle" hidden>
+        <div class="tutorial-card">
+          <p class="tutorial-kicker">FIRST DUEL · 5 SECOND GUIDE</p>
+          <h2 id="tutorialTitle">Cross the red center to win.</h2>
+          <ol>
+            <li><b>1</b><span>Press anywhere inside the teal pencil's dotted circle.</span></li>
+            <li><b>2</b><span>Drag and flick in the direction you want to travel.</span></li>
+            <li><b>3</b><span>Your pencil trace—not its final stop—must cross the orange center dot.</span></li>
+            <li><b>4</b><span>Practice has no launch timer. Then the AI takes a turn.</span></li>
+          </ol>
+          <button id="startTutorialButton" type="button">TRY A PRACTICE FLICK <span>→</span></button>
+        </div>
+      </section>
 
       <div class="result-overlay" id="resultOverlay" hidden>
         <div class="result-stamp" id="resultStamp">HIT!</div>
@@ -91,10 +114,15 @@
         <h2 id="resultTitle">PLAYER WINS</h2>
         <p id="resultText">Your pencil line crossed the computer's exact center point.</p>
         <div class="result-stats">
-          <div><span>ROUNDS</span><b id="resultRounds">03</b></div>
-          <div><span>YOUR TRACE</span><b id="resultDistance">824 px</b></div>
+          <div><span>CLOSEST</span><b id="resultClosest">1.8 px</b></div>
+          <div><span>ACCURACY</span><b id="resultAccuracy">96%</b></div>
+          <div><span>POWER</span><b id="resultPower">74%</b></div>
+          <div><span>WIN STREAK</span><b id="resultStreak">01</b></div>
         </div>
-        <button id="playAgainButton" type="button">PLAY AGAIN <span>→</span></button>
+        <div class="result-actions">
+          <button id="playAgainButton" type="button">REMATCH <span>→</span></button>
+          <button id="harderButton" class="secondary-result-action" type="button">HARDER AI</button>
+        </div>
       </div>
     </section>
   </main>

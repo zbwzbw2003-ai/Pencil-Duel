@@ -6,7 +6,7 @@
   "assets": {
     "directory": "./public",
     "binding": "ASSETS",
-    "run_worker_first": ["/api/*", "/game1/api/*"]
+    "run_worker_first": true
   },
   "routes": [
     {
@@ -15,6 +15,14 @@
     },
     {
       "pattern": "www.photonplanet.com.au/game1/*",
+      "zone_name": "photonplanet.com.au"
+    },
+    {
+      "pattern": "www.photonplanet.com.au/apps/games/pencil",
+      "zone_name": "photonplanet.com.au"
+    },
+    {
+      "pattern": "www.photonplanet.com.au/apps/games/pencil/*",
       "zone_name": "photonplanet.com.au"
     }
   ],
@@ -31,5 +39,9 @@
       "type": "durable-object",
       "storage": "sqlite"
     }
+  },
+  "observability": {
+    "enabled": true,
+    "head_sampling_rate": 1
   }
 }

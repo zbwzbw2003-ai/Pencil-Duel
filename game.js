@@ -15,8 +15,27 @@
   const resultOverlay = document.getElementById('resultOverlay');
   const resultTitle = document.getElementById('resultTitle');
   const resultText = document.getElementById('resultText');
-  const resultRounds = document.getElementById('resultRounds');
-  const resultDistance = document.getElementById('resultDistance');
+  const resultClosest = document.getElementById('resultClosest');
+  const resultAccuracy = document.getElementById('resultAccuracy');
+  const resultPower = document.getElementById('resultPower');
+  const resultStreak = document.getElementById('resultStreak');
+  const harderButton = document.getElementById('harderButton');
+  const tutorialOverlay = document.getElementById('tutorialOverlay');
+  const paperName = document.getElementById('paperName');
+  const frictionValue = document.getElementById('frictionValue');
+  const aimLimitValue = document.getElementById('aimLimitValue');
+  const rangeValue = document.getElementById('rangeValue');
+  const telemetry = document.querySelector('.telemetry');
+  const telemetryToggle = document.getElementById('telemetryToggle');
+  const aiSubtitle = document.getElementById('aiSubtitle');
+  const rankValue = document.getElementById('rankValue');
+  const hudPanels = [
+    document.querySelector('.paper-title'),
+    turnBanner,
+    telemetry,
+    document.querySelector('.legend'),
+    controlDock
+  ].filter(Boolean);
 
   const COLORS = {
     player: '#0e9999', playerDark: '#086e73',
@@ -24,7 +43,6 @@
   };
   const MAX_DRAG = 92;
   const MIN_DRAG = 10;
-  const AIM_WINDOW_MS = 300;
   const DRAG_POWER_WEIGHT = .7;
   const HOLD_POWER_WEIGHT = .3;
   const FRICTION = 940;
@@ -32,15 +50,33 @@
   const CENTER_HIT_TOLERANCE = 2;
   const EDGE = 42;
   const audio = { context: null, scratch: null, gain: null };
+  const MODE_KEY = 'pencil-duel:mode';
+  const PROGRESS_KEY = 'pencil-duel:progress';
+  const TUTORIAL_KEY = 'pencil-duel:tutorial-seen';
+  const MODES = {
+    easy: {label: 'EASY', aimWindow: 800, profile: 'ROOKIE', aiError: .14, powers: [.40, .52, .64, .76, .88]},
+    normal: {label: 'NORMAL', aimWindow: 500, profile: 'HUNTER', aiError: .068, powers: [.46, .58, .70, .82, .94, 1]},
+    expert: {label: 'EXPERT', aimWindow: 300, profile: 'SNIPER', aiError: .024, powers: [.54, .66, .78, .90, 1]}
+  };
+  const SURFACES = [
+    {name: 'SMOOTH', friction: 'LOW', factor: .92, range: 'STABLE'},
+    {name: 'GRAIN', friction: 'MEDIUM', factor: 1, range: 'ANGLE GRAIN'},
+    {name: 'ROUGH', friction: 'HIGH', factor: 1.10, range: 'ANGLE GRAIN'}
+  ];
+  const isTouchDevice = matchMedia('(pointer: coarse)').matches || navigator.maxTouchPoints > 0;
 
   let W = 0, H = 0, dpr = 1, lastTime = performance.now();
   let state;
   let rafId = null;
 
   function makeState() {
+    const savedMode = localStorage.getItem(MODE_KEY);
     return {
       phase: 'playerAim',
       round: 1,
+      mode: MODES[savedMode] ? savedMode : 'easy',
+      tutorial: !localStorage.getItem(TUTORIAL_KEY),
+      surface: SURFACES[Math.floor(Math.random() * SURFACES.length)],
       active: 'player',
       player: { pos: {x: W * .15, y: H * .68}, vel: {x: 0, y: 0}, angle: -.15, distance: 0, lastMove: {x: 0, y: 0} },
       ai: { pos: {x: W * .85, y: H * .32}, vel: {x: 0, y: 0}, angle: Math.PI, distance: 0, lastMove: {x: 0, y: 0} },
@@ -60,7 +96,9 @@
       particles: [],
       pulse: 0,
       shake: 0,
-      aiTimer: null
+      aiTimer: null,
+      lastShot: null,
+      stats: {closest: Infinity, lastPower: 0, lastAngle: 0}
     };
   }
 
@@ -82,6 +120,7 @@
       Object.values(state.bases).forEach(p => { p.x *= sx; p.y *= sy; });
       state.trails.forEach(t => t.points.forEach(p => { p.x *= sx; p.y *= sy; }));
     }
+    refreshPencilClearance();
   }
 
   function resetGame() {
@@ -89,9 +128,45 @@
     state = makeState();
     resultOverlay.hidden = true;
     resultOverlay.classList.remove('lost');
+    tutorialOverlay.hidden = !state.tutorial;
+    updateMatchInfo();
     updateUI('player');
     canvas.className = 'can-aim';
     lastTime = performance.now();
+  }
+
+  function currentMode() { return MODES[state.mode]; }
+  function aimWindow() { return state.tutorial ? Infinity : currentMode().aimWindow; }
+  function deviceVerb() { return isTouchDevice ? 'Touch, drag and flick' : 'Hold and flick'; }
+  function progress() {
+    try { return JSON.parse(localStorage.getItem(PROGRESS_KEY)) || {wins: 0, streak: 0}; }
+    catch { return {wins: 0, streak: 0}; }
+  }
+  function saveProgress(value) { localStorage.setItem(PROGRESS_KEY, JSON.stringify(value)); }
+  function rankForWins(wins) {
+    if (wins >= 15) return 'PENCIL GOD';
+    if (wins >= 9) return 'MASTER';
+    if (wins >= 5) return 'PRO';
+    if (wins >= 2) return 'AMATEUR';
+    return 'ROOKIE';
+  }
+  function currentProfile() {
+    const wins = progress().wins;
+    if (state.mode === 'easy') return wins >= 2 ? 'HUNTER' : 'ROOKIE';
+    if (state.mode === 'normal') return wins >= 5 ? 'AGGRESSIVE' : 'HUNTER';
+    return wins >= 12 ? 'GRANDMASTER' : wins >= 8 ? 'TRICKSTER' : 'SNIPER';
+  }
+  function updateMatchInfo() {
+    const mode = currentMode();
+    paperName.textContent = state.surface.name;
+    frictionValue.textContent = state.surface.friction;
+    aimLimitValue.textContent = state.tutorial ? 'PRACTICE' : `${(mode.aimWindow / 1000).toFixed(1)} SEC`;
+    rangeValue.textContent = state.surface.range;
+    const career = progress();
+    aiMode.textContent = currentProfile();
+    aiSubtitle.textContent = `${mode.label} AI · ${rankForWins(career.wins)}`;
+    rankValue.textContent = rankForWins(career.wins);
+    document.querySelectorAll('[data-mode]').forEach(button => button.classList.toggle('is-active', button.dataset.mode === state.mode));
   }
 
   function updateUI(turn) {
@@ -100,9 +175,11 @@
     if (turn === 'player') {
       turnBanner.classList.remove('ai-turn');
       turnBanner.querySelector('small').textContent = 'YOUR MOVE';
-      turnBanner.querySelector('strong').textContent = 'Draw your strike';
-      instructionTitle.textContent = 'Hold left-click and flick toward your target';
-      instructionText.textContent = 'Release early or auto-launch at 0.3 seconds.';
+      turnBanner.querySelector('strong').textContent = state.tutorial ? 'Practice your first strike' : 'Draw your strike';
+      instructionTitle.textContent = `${deviceVerb()} through the red center`;
+      instructionText.textContent = state.tutorial
+        ? 'Practice is untimed. Release when your direction and power feel right.'
+        : `Release early or auto-launch at ${(aimWindow() / 1000).toFixed(1)} seconds.`;
       controlDock.classList.remove('waiting');
     } else {
       turnBanner.classList.add('ai-turn');
@@ -113,6 +190,7 @@
       controlDock.classList.add('waiting');
     }
     setPower(0);
+    refreshPencilClearance();
   }
 
   function setPower(value) {
@@ -127,13 +205,46 @@
     return { x: e.clientX - r.left, y: e.clientY - r.top };
   }
 
+  function pencilLength() { return Math.min(58, Math.max(38, W * .105)); }
+
+  // The visual pencil runs from its eraser to its tip. That line is the diameter
+  // of the activation circle, so a press anywhere in the circle starts a flick.
+  function pencilInteractionZone(unit) {
+    const length = pencilLength() + 14;
+    return {
+      x: unit.pos.x - Math.cos(unit.angle) * length / 2,
+      y: unit.pos.y - Math.sin(unit.angle) * length / 2,
+      radius: length / 2
+    };
+  }
+
+  function canStartFlickAt(point, unit) {
+    const zone = pencilInteractionZone(unit);
+    return distance(point, zone) <= zone.radius;
+  }
+
+  function refreshPencilClearance() {
+    const canAim = state?.phase === 'playerAim' && !state.aiming;
+    const zone = canAim ? pencilInteractionZone(state.player) : null;
+    const boardRect = canvas.getBoundingClientRect();
+    hudPanels.forEach(panel => {
+      const rect = panel.getBoundingClientRect();
+      const nearestX = clamp(zone ? boardRect.left + zone.x : 0, rect.left, rect.right);
+      const nearestY = clamp(zone ? boardRect.top + zone.y : 0, rect.top, rect.bottom);
+      const overlaps = Boolean(zone) && Math.hypot(boardRect.left + zone.x - nearestX, boardRect.top + zone.y - nearestY) <= zone.radius + 8;
+      panel.classList.toggle('pencil-clearance', overlaps);
+    });
+    board.classList.toggle('pencil-ready', Boolean(zone));
+  }
+
   function pointerDown(e) {
     if (state.phase !== 'playerAim') return;
     if (state.aiming) return;
     if (e.pointerType === 'mouse' && e.button !== 0) return;
     const p = pointFromEvent(e);
-    if (distance(p, state.player.pos) > 60) return;
+    if (!canStartFlickAt(p, state.player)) return;
     e.preventDefault();
+    e.stopPropagation();
     initAudio();
     state.aiming = true;
     state.pointerId = e.pointerId;
@@ -144,10 +255,12 @@
     state.aimFrozen = false;
     state.aimPoint = {...state.player.pos};
     state.aimPower = 0;
-    canvas.setPointerCapture(e.pointerId);
+    board.setPointerCapture(e.pointerId);
     canvas.className = 'is-aiming';
     instructionTitle.textContent = 'The pencil tip follows your exact gesture centerline';
-    instructionText.textContent = 'Adjust for 0.3 seconds; the pencil launches when time expires.';
+    instructionText.textContent = state.tutorial
+      ? 'Practice mode: take your time, then release to launch.'
+      : `Adjust for ${(aimWindow() / 1000).toFixed(1)} seconds; it launches when time expires.`;
   }
 
   function pointerMove(e) {
@@ -174,10 +287,10 @@
     if (!state.aiming || state.aimFrozen) return state.aimFrozen;
     const elapsed = performance.now() - state.aimStartedAt;
     const dragPower = Math.min(1, state.aimDragDistance / MAX_DRAG);
-    const holdPower = Math.min(1, elapsed / AIM_WINDOW_MS);
+    const holdPower = Math.min(1, elapsed / (Number.isFinite(aimWindow()) ? aimWindow() : 800));
     state.aimPower = Math.min(1, dragPower * DRAG_POWER_WEIGHT + holdPower * HOLD_POWER_WEIGHT);
     setPower(state.aimPower);
-    if (elapsed >= AIM_WINDOW_MS) {
+    if (Number.isFinite(aimWindow()) && elapsed >= aimWindow()) {
       state.aimFrozen = true;
     }
     return state.aimFrozen;
@@ -196,8 +309,8 @@
     if (!state.aiming) return;
     const power = state.aimPower;
     state.aiming = false;
-    if (state.pointerId !== null && canvas.hasPointerCapture(state.pointerId)) {
-      canvas.releasePointerCapture(state.pointerId);
+    if (state.pointerId !== null && board.hasPointerCapture(state.pointerId)) {
+      board.releasePointerCapture(state.pointerId);
     }
     canvas.className = '';
     const dx = state.aimVector.x;
@@ -211,7 +324,7 @@
       return;
     }
     const speed = 180 + Math.max(.08, power) * (MAX_SPEED - 180);
-    launch('player', {x: dx / len * speed, y: dy / len * speed});
+    launch('player', {x: dx / len * speed, y: dy / len * speed}, power);
   }
 
   function pointerCancel(e) {
@@ -228,21 +341,23 @@
     updateUI('player');
   }
 
-  function launch(owner, velocity) {
+  function launch(owner, velocity, power = null) {
     const unit = state[owner];
     const shotAngle = Math.atan2(velocity.y, velocity.x);
-    const randomSurface = .84 + Math.random() * .32;
     state.active = owner;
     state.phase = 'moving';
     unit.vel = {...velocity};
     unit.angle = shotAngle;
-    unit.moveFriction = paperFrictionForAngle(shotAngle, randomSurface);
+    unit.moveFriction = paperFrictionForAngle(shotAngle, state.surface.factor);
     unit.startPos = {...unit.pos};
     state.currentTrail = {
       owner,
       points: [{...unit.pos}],
       seed: Math.random() * 1000,
-      distance: 0
+      distance: 0,
+      closest: Infinity,
+      power: power ?? clamp((Math.hypot(velocity.x, velocity.y) - 180) / (MAX_SPEED - 180), 0, 1),
+      angle: shotAngle
     };
     state.trails.push(state.currentTrail);
     state.aimPoint = null;
@@ -252,6 +367,8 @@
     state.aimDragDistance = 0;
     state.aimFrozen = false;
     setPower(0);
+    refreshPencilClearance();
+    haptic(owner === 'player' ? 8 : 4);
     startScratch();
   }
 
@@ -285,7 +402,10 @@
       unit.distance += moved;
       if (moved > 1.2) state.currentTrail.points.push({...unit.pos});
       unit.angle = Math.atan2(unit.vel.y, unit.vel.x);
-      if (segmentDistance(old, unit.pos, target.pos) <= CENTER_HIT_TOLERANCE) {
+      const centerDistance = segmentDistance(old, unit.pos, target.pos);
+      state.currentTrail.closest = Math.min(state.currentTrail.closest, centerDistance);
+      if (owner === 'player') state.stats.closest = Math.min(state.stats.closest, centerDistance);
+      if (centerDistance <= CENTER_HIT_TOLERANCE) {
         state.currentTrail.points.push({...unit.pos});
         endGame(owner);
         return;
@@ -305,19 +425,33 @@
     const unit = state[owner];
     unit.vel = {x: 0, y: 0};
     unit.lastMove = {x: unit.pos.x - unit.startPos.x, y: unit.pos.y - unit.startPos.y};
+    state.lastShot = {...state.currentTrail};
+    if (owner === 'player') {
+      state.stats.lastPower = state.currentTrail.power;
+      state.stats.lastAngle = state.currentTrail.angle;
+    }
     state.currentTrail = null;
     playTick(owner === 'player' ? 330 : 240, .06);
     if (owner === 'player') {
       state.phase = 'aiThinking';
       updateUI('ai');
       aiMode.textContent = 'SCANNING';
-      state.aiTimer = setTimeout(takeAiTurn, 720);
+      const feedback = shotFeedback(state.lastShot.closest);
+      turnBanner.querySelector('strong').textContent = feedback.title;
+      instructionTitle.textContent = feedback.title;
+      instructionText.textContent = feedback.detail;
+      if (state.tutorial) {
+        state.tutorial = false;
+        localStorage.setItem(TUTORIAL_KEY, '1');
+        updateMatchInfo();
+      }
+      state.aiTimer = setTimeout(takeAiTurn, 1050);
     } else {
       state.round += 1;
       state.phase = 'playerAim';
       state.active = 'player';
       canvas.className = 'can-aim';
-      aiMode.textContent = 'HUNTER';
+      aiMode.textContent = currentProfile();
       updateUI('player');
     }
   }
@@ -327,21 +461,23 @@
     const choice = chooseAiShot();
     aiMode.textContent = choice.direct ? 'LOCKED' : choice.mode;
     turnBanner.querySelector('strong').textContent = choice.direct ? 'AI locked an intercept line' : 'AI pencil in motion';
-    launch('ai', choice.velocity);
+    launch('ai', choice.velocity, choice.power);
   }
 
   function chooseAiShot() {
     const start = state.ai.pos;
     const target = state.player.pos;
     const lm = state.player.lastMove;
+    const profile = currentProfile();
+    const predictionLead = profile === 'TRICKSTER' ? .84 : profile === 'GRANDMASTER' ? .68 : .52;
     const predicted = {
-      x: clamp(target.x + lm.x * .52, EDGE, W - EDGE),
-      y: clamp(target.y + lm.y * .52, EDGE + 22, H - EDGE - 44)
+      x: clamp(target.x + lm.x * predictionLead, EDGE, W - EDGE),
+      y: clamp(target.y + lm.y * predictionLead, EDGE + 22, H - EDGE - 44)
     };
     const baseAngle = Math.atan2(target.y - start.y, target.x - start.x);
     const predictedAngle = Math.atan2(predicted.y - start.y, predicted.x - start.x);
     const candidates = [];
-    const powers = [.46, .58, .70, .82, .94, 1];
+    const powers = currentMode().powers;
     for (const center of [baseAngle, predictedAngle]) {
       for (let n = -10; n <= 10; n++) {
         for (const power of powers) candidates.push({angle: center + n * .035, power});
@@ -357,7 +493,8 @@
       const sim = simulateShot(start, {x: Math.cos(c.angle) * speed, y: Math.sin(c.angle) * speed}, target, predicted);
       const playerReach = distance(sim.end, target);
       const edgeSpace = Math.min(sim.end.x - EDGE, W - EDGE - sim.end.x, sim.end.y - EDGE, H - EDGE - sim.end.y);
-      const danger = Math.max(0, 470 - playerReach) * .22 + (playerReach < 85 ? 240 : 0);
+      const dangerWeight = profile === 'AGGRESSIVE' ? .08 : profile === 'GRANDMASTER' ? .32 : .22;
+      const danger = Math.max(0, 470 - playerReach) * dangerWeight + (playerReach < 85 ? (profile === 'AGGRESSIVE' ? 80 : 240) : 0);
       const edgePenalty = Math.max(0, 64 - edgeSpace) * 1.7;
       const directBonus = sim.hit ? -100000 + sim.time * 120 : 0;
       const score = directBonus + sim.minTarget * 8.5 + sim.minPredicted * 1.35 + danger + edgePenalty + c.power * 8;
@@ -366,13 +503,15 @@
     const speed = 180 + best.power * (MAX_SPEED - 180);
     // The AI plans geometrically, but executes like a real hand: early shots have
     // a little more angular error and become steadier as the duel continues.
-    const directError = Math.max(.032, .072 - state.round * .004);
+    const profilePrecision = profile === 'GRANDMASTER' ? .012 : profile === 'TRICKSTER' ? .018 : currentMode().aiError;
+    const directError = Math.max(.010, profilePrecision - state.round * .004);
     const aimError = best.hit
       ? (Math.random() * 2 - 1) * directError
       : (Math.random() * 2 - 1) * .026;
     const shotAngle = best.angle + aimError;
     return {
       velocity: {x: Math.cos(shotAngle) * speed, y: Math.sin(shotAngle) * speed},
+      power: best.power,
       direct: best.hit,
       mode: best.minPredicted < best.minTarget * .9 ? 'PREDICT' : (distance(best.end, target) > 430 ? 'EVADE' : 'CHASE')
     };
@@ -407,21 +546,52 @@
   function endGame(winner) {
     state.phase = 'gameOver';
     state.winner = winner;
+    if (state.currentTrail) {
+      state.lastShot = {...state.currentTrail};
+      if (state.currentTrail.owner === 'player') {
+        state.stats.closest = Math.min(state.stats.closest, state.currentTrail.closest);
+        state.stats.lastPower = state.currentTrail.power;
+        state.stats.lastAngle = state.currentTrail.angle;
+      }
+    }
     stopScratch();
     canvas.className = '';
     state.shake = 8;
     spawnHitParticles(state[winner === 'player' ? 'ai' : 'player'].pos, winner);
     playHit(winner === 'player');
+    haptic(winner === 'player' ? [16, 28, 20] : [32, 28, 32]);
+    const saved = progress();
+    const nextProgress = winner === 'player'
+      ? {wins: saved.wins + 1, streak: saved.streak + 1}
+      : {wins: saved.wins, streak: 0};
+    saveProgress(nextProgress);
+    updateMatchInfo();
     setTimeout(() => {
       resultOverlay.hidden = false;
       resultOverlay.classList.toggle('lost', winner === 'ai');
       resultTitle.textContent = winner === 'player' ? 'PLAYER WINS' : 'COMPUTER WINS';
+      const closest = Number.isFinite(state.stats.closest) ? state.stats.closest : state.lastShot?.closest;
+      const displayClosest = Number.isFinite(closest) ? closest : 0;
+      const accuracy = winner === 'player' ? 100 : Math.max(0, Math.round(100 - displayClosest * 3.2));
       resultText.textContent = winner === 'player'
-        ? "Your pencil line crossed the computer's exact center point."
-        : 'The computer crossed your center point first.';
-      resultRounds.textContent = String(state.round).padStart(2, '0');
-      resultDistance.textContent = `${Math.round(state.player.distance)} px`;
+        ? "Perfect line: you crossed the computer's exact center point."
+        : `Computer wins. Your closest trace was ${displayClosest.toFixed(1)} px from center.`;
+      resultClosest.textContent = `${displayClosest.toFixed(1)} px`;
+      resultAccuracy.textContent = `${accuracy}%`;
+      resultPower.textContent = `${Math.round(state.stats.lastPower * 100)}%`;
+      resultStreak.textContent = String(nextProgress.streak).padStart(2, '0');
     }, 620);
+  }
+
+  function shotFeedback(closest) {
+    if (!Number.isFinite(closest)) return {title: 'TRACE COMPLETE', detail: 'Set up your next line before the AI moves.'};
+    if (closest <= 8) return {title: `GREAT — ${closest.toFixed(1)} px AWAY`, detail: 'That was nearly a center hit. Keep that line in mind.'};
+    if (closest <= 20) return {title: `CLOSE — ${closest.toFixed(1)} px AWAY`, detail: 'A tiny angle or power adjustment can convert this.'};
+    return {title: `MISS BY ${closest.toFixed(1)} px`, detail: 'Use the trace to read your next intercept.'};
+  }
+
+  function haptic(pattern) {
+    if (isTouchDevice && navigator.vibrate) navigator.vibrate(pattern);
   }
 
   function spawnHitParticles(pos, owner) {
@@ -452,6 +622,7 @@
     drawCurrentMarker('ai');
     drawPencil('player');
     drawPencil('ai');
+    drawPencilInteractionZone();
     drawParticles();
     ctx.restore();
   }
@@ -548,6 +719,18 @@
     ctx.globalAlpha = .9;
     ctx.beginPath(); ctx.arc(0, 0, CENTER_HIT_TOLERANCE, 0, Math.PI * 2); ctx.fill();
     ctx.restore();
+    if (owner === 'ai' && state.tutorial && state.phase !== 'gameOver') {
+      ctx.save();
+      ctx.translate(unit.pos.x, unit.pos.y);
+      ctx.strokeStyle = COLORS.ai; ctx.fillStyle = COLORS.ai;
+      ctx.globalAlpha = .65 + Math.sin(state.pulse * 4) * .18;
+      ctx.lineWidth = 1.2;
+      [12, 20, 28].forEach(radius => { ctx.beginPath(); ctx.arc(0, 0, radius, 0, Math.PI * 2); ctx.stroke(); });
+      ctx.globalAlpha = .72;
+      ctx.font = '700 8px ui-monospace, Consolas, monospace'; ctx.textAlign = 'center';
+      ctx.fillText('CROSS THIS DOT', 0, -35);
+      ctx.restore();
+    }
   }
 
   function drawPencil(owner) {
@@ -557,7 +740,7 @@
     const dark = owner === 'player' ? COLORS.playerDark : COLORS.aiDark;
     const highlight = owner === 'player' ? '#63e3d7' : '#ffb27e';
     const eraser = owner === 'player' ? '#3bc8bd' : '#f28b58';
-    const length = Math.min(58, Math.max(38, W * .105));
+    const length = pencilLength();
     ctx.save();
     ctx.translate(unit.pos.x, unit.pos.y);
     ctx.rotate(unit.angle);
@@ -598,6 +781,21 @@
     [-length - 5, -length - 2].forEach(x => { ctx.beginPath(); ctx.moveTo(x, -5.5); ctx.lineTo(x, 5.5); ctx.stroke(); });
     ctx.fillStyle = eraser; roundRect(ctx, -length - 14, -5.7, 7, 11.4, 2.5); ctx.fill();
     ctx.fillStyle = 'rgba(255,255,255,.28)'; roundRect(ctx, -length - 13, -4.5, 2, 8, 1); ctx.fill();
+    ctx.restore();
+  }
+
+  function drawPencilInteractionZone() {
+    if (state.phase !== 'playerAim' || state.aiming) return;
+    const zone = pencilInteractionZone(state.player);
+    ctx.save();
+    ctx.strokeStyle = COLORS.player;
+    ctx.globalAlpha = .3 + Math.sin(state.pulse * 3) * .08;
+    ctx.lineWidth = 1;
+    ctx.setLineDash([2, 5]);
+    ctx.beginPath();
+    ctx.arc(zone.x, zone.y, zone.radius, 0, Math.PI * 2);
+    ctx.stroke();
+    ctx.setLineDash([]);
     ctx.restore();
   }
 
@@ -713,12 +911,35 @@
     return Math.hypot(p.x - (a.x + t * dx), p.y - (a.y + t * dy));
   }
 
-  canvas.addEventListener('pointerdown', pointerDown);
-  canvas.addEventListener('pointermove', pointerMove);
-  canvas.addEventListener('pointerup', pointerUp);
-  canvas.addEventListener('pointercancel', pointerCancel);
+  board.addEventListener('pointerdown', pointerDown);
+  board.addEventListener('pointermove', pointerMove);
+  board.addEventListener('pointerup', pointerUp);
+  board.addEventListener('pointercancel', pointerCancel);
   document.getElementById('resetButton').addEventListener('click', resetGame);
   document.getElementById('playAgainButton').addEventListener('click', resetGame);
+  document.getElementById('startTutorialButton').addEventListener('click', () => {
+    tutorialOverlay.hidden = true;
+    canvas.className = 'can-aim';
+    updateUI('player');
+  });
+  harderButton.addEventListener('click', () => {
+    const order = ['easy', 'normal', 'expert'];
+    const next = order[Math.min(order.indexOf(state.mode) + 1, order.length - 1)];
+    localStorage.setItem(MODE_KEY, next);
+    localStorage.setItem(TUTORIAL_KEY, '1');
+    resetGame();
+  });
+  document.querySelectorAll('[data-mode]').forEach(button => button.addEventListener('click', () => {
+    if (!MODES[button.dataset.mode]) return;
+    localStorage.setItem(MODE_KEY, button.dataset.mode);
+    localStorage.setItem(TUTORIAL_KEY, '1');
+    resetGame();
+  }));
+  telemetryToggle.addEventListener('click', () => {
+    const expanded = telemetry.classList.toggle('show-details');
+    telemetryToggle.setAttribute('aria-expanded', String(expanded));
+    telemetryToggle.textContent = expanded ? 'DETAILS −' : 'DETAILS +';
+  });
   window.addEventListener('resize', resize);
   document.addEventListener('visibilitychange', () => { lastTime = performance.now(); });
 
