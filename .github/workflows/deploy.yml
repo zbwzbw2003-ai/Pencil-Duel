@@ -56,4 +56,4 @@ jobs:
       - name: Enforce merged-main deployment source
         run: node scripts/verify-production-branch.mjs
       - name: Deploy isolated Pencil Duel Worker
-        run: npx wrangler deploy
+        run: npm run deploy
