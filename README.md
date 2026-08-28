@@ -2,7 +2,8 @@
 
 一款保留真实“弹铅笔”手感的网页追逐游戏，支持单机人机对战和互联网双人房间对战，可部署到 Cloudflare Workers 免费套餐。
 
-生产入口：<https://www.photonplanet.com.au/game1>
+生产入口：<https://www.photonplanet.com.au/game1>。Worker 本身不拥有域名路由，
+仅由 Photon Planet 平台 Router 通过 Service Binding 调用，因此独立发布不会影响主站或其他应用。
 
 ## 游戏规则
 

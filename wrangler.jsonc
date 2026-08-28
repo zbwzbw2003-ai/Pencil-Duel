@@ -3,29 +3,14 @@
   "name": "pencil-duel-online",
   "main": "src/worker.js",
   "compatibility_date": "2026-08-08",
+  "compatibility_flags": ["nodejs_compat"],
+  "workers_dev": false,
+  "preview_urls": false,
   "assets": {
     "directory": "./public",
     "binding": "ASSETS",
     "run_worker_first": true
   },
-  "routes": [
-    {
-      "pattern": "www.photonplanet.com.au/game1",
-      "zone_name": "photonplanet.com.au"
-    },
-    {
-      "pattern": "www.photonplanet.com.au/game1/*",
-      "zone_name": "photonplanet.com.au"
-    },
-    {
-      "pattern": "www.photonplanet.com.au/apps/games/pencil",
-      "zone_name": "photonplanet.com.au"
-    },
-    {
-      "pattern": "www.photonplanet.com.au/apps/games/pencil/*",
-      "zone_name": "photonplanet.com.au"
-    }
-  ],
   "durable_objects": {
     "bindings": [
       {
