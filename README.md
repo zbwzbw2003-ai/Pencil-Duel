@@ -45,6 +45,15 @@ npm run dev
 npm run check
 ```
 
+单元测试（Node.js 内置 test runner，无需额外服务）：
+
+```bash
+npm test
+# 或 npm run test:unit
+```
+
+测试覆盖尺寸归一化、公开状态脱敏、线段距离、纸张摩擦、力度与边界停止、精确中心命中/擦边未命中，以及联机断线恢复状态。
+
 联机冒烟测试需要先运行 `npm run dev`，再在另一个终端执行：
 
 ```bash
@@ -86,7 +95,7 @@ API Token 不要写入仓库文件或提交记录。
 assets/               纸张纹理源文件
 src/worker.js          Worker 路由与权威 Durable Object 游戏服务器
 scripts/               静态资源同步脚本
-tests/                 状态恢复及双 WebSocket 冒烟测试
+tests/                 物理/状态单元测试及双 WebSocket 冒烟测试
 index.html             人机模式
 online.html            互联网房间模式
 game.js                人机游戏逻辑
