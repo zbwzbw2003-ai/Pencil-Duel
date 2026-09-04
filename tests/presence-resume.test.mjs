@@ -14,9 +14,8 @@ function pauseForDisconnect(state) {
   return state;
 }
 
-function assert(condition, message) {
-  if (!condition) throw new Error(message);
-}
+import test from 'node:test';
+import assert from 'node:assert/strict';
 
 const base = {
   status: 'playing',
@@ -25,29 +24,48 @@ const base = {
   pausedForDisconnect: false
 };
 
-let state = pauseForDisconnect({...base});
-assert(state.phase === 'onlineWaiting', 'disconnect should pause the match');
-assert(state.pausedForDisconnect === true, 'disconnect should set pausedForDisconnect');
+test('disconnect pauses a playing match and both players reconnecting resumes the host turn', () => {
+  let state = pauseForDisconnect({...base});
+  assert.equal(state.phase, 'onlineWaiting');
+  assert.equal(state.pausedForDisconnect, true);
 
-state = resumeAfterBothPresent(state, {
-  side: 'player',
-  presence: {player: true, ai: true}
+  state = resumeAfterBothPresent(state, {
+    side: 'player',
+    presence: {player: true, ai: true}
+  });
+  assert.equal(state.phase, 'playerAim');
+  assert.equal(state.pausedForDisconnect, false);
 });
-assert(state.phase === 'playerAim', 'host should regain aim after opponent reconnects');
-assert(state.pausedForDisconnect === false, 'resume should clear pausedForDisconnect');
 
-state = pauseForDisconnect({...base, active: 'ai', phase: 'onlineWaiting'});
-state = resumeAfterBothPresent(state, {
-  side: 'ai',
-  presence: {player: true, ai: true}
+test('guest turn resumes only for the guest, while the host keeps waiting', () => {
+  let state = pauseForDisconnect({...base, active: 'ai', phase: 'onlineWaiting'});
+  state = resumeAfterBothPresent(state, {
+    side: 'ai',
+    presence: {player: true, ai: true}
+  });
+  assert.equal(state.phase, 'playerAim');
+
+  state = pauseForDisconnect({...base, active: 'ai', phase: 'onlineWaiting'});
+  state = resumeAfterBothPresent(state, {
+    side: 'player',
+    presence: {player: true, ai: true}
+  });
+  assert.equal(state.phase, 'onlineWaiting');
 });
-assert(state.phase === 'playerAim', 'guest should regain aim when it is their turn');
 
-state = pauseForDisconnect({...base, active: 'ai', phase: 'onlineWaiting'});
-state = resumeAfterBothPresent(state, {
-  side: 'player',
-  presence: {player: true, ai: true}
+test('a match does not resume until both presences are online', () => {
+  const state = pauseForDisconnect({...base});
+  const resumed = resumeAfterBothPresent(state, {
+    side: 'player',
+    presence: {player: true, ai: false}
+  });
+  assert.equal(resumed.phase, 'onlineWaiting');
+  assert.equal(resumed.pausedForDisconnect, true);
 });
-assert(state.phase === 'onlineWaiting', 'host should keep waiting when it is guest turn');
 
-console.log('presence-resume.test.mjs: all checks passed');
+test('finished and non-playing states are not paused by a disconnect', () => {
+  for (const status of ['waiting', 'finished']) {
+    const state = {status, phase: 'result', pausedForDisconnect: false};
+    assert.deepEqual(pauseForDisconnect(state), state);
+  }
+});
